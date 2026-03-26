@@ -2,7 +2,7 @@ name: Build Nginx Binary
 
 on:
   schedule:
-    - cron: '0 18 * * *'  # 每天北京时间次日凌晨 2:00 检查
+    - cron: '0 10 * * *'
   workflow_dispatch:
 
 jobs:
@@ -195,13 +195,8 @@ jobs:
           cp nginx-src/objs/nginx "nginx-${NGINX_VERSION}"
           ls -la "nginx-${NGINX_VERSION}"
 
-      - name: Create Release and Upload Binary for ${{ matrix.version }}
-        uses: softprops/action-gh-release@v2
+      - name: Upload Binary Artifact
+        uses: actions/upload-artifact@v4
         with:
           name: nginx-${{ matrix.version }}
-          tag_name: nginx-${{ matrix.version }}
-          files: nginx-${{ matrix.version }}
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          path: nginx-${{ matrix.version }}
