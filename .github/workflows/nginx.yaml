@@ -2,28 +2,25 @@ name: Build Nginx Binary
 
 on:
   schedule:
-    - cron: '0 10 * * *'
+    - cron: '0 10 * * 5'   # 每周五 10:00 UTC 自动构建
   workflow_dispatch:
 
 jobs:
   find-releases:
     runs-on: ubuntu-latest
     outputs:
-      # 输出一个 JSON 字符串，包含所有需要构建的版本
       versions_json: ${{ steps.set-matrix.outputs.versions_json }}
-      # 输出一个标志，表示是否有版本需要构建
       should_build: ${{ steps.set-matrix.outputs.should_build }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        # 为了应对 Node.js 20 的弃用警告，启用 Node.js 24
         env:
           FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
       - name: Find Nginx releases to build
         id: set-matrix
         run: |
-          # 安装依赖
+          # 安装 jq
           if ! command -v jq &> /dev/null; then
             sudo apt-get update && sudo apt-get install -y jq
           fi
@@ -39,12 +36,10 @@ jobs:
           # 遍历 releases 并查找匹配的版本
           for row in $(echo "${releases}" | jq -r '.[] | @base64'); do
             _jq() { echo ${row} | base64 --decode | jq -r ${1}; }
-            
             tag_name=$(_jq '.tag_name')
             # 格式如 release-1.28.3
             if [[ $tag_name =~ ^release-(1\.28\.[0-9]+|1\.29\.[0-9]+)$ ]]; then
               full_version="${tag_name#release-}"
-              
               if [[ $full_version =~ ^1\.28\.[0-9]+$ ]] && ( [[ -z "$latest_128" ]] || [[ "$full_version" > "$latest_128" ]] ); then
                 latest_128="$full_version"
               elif [[ $full_version =~ ^1\.29\.[0-9]+$ ]] && ( [[ -z "$latest_129" ]] || [[ "$full_version" > "$latest_129" ]] ); then
@@ -53,103 +48,58 @@ jobs:
             fi
           done
 
-          # 根据触发方式确定最终要构建的版本列表
-          declare -a versions_to_build=()
-          
-          if [[ "${{ github.event_name }}" == "schedule" ]]; then
-            # 自动调度模式：只检查是否有任何一个新版本是全新的
-            all_repo_releases=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/repos/${{ github.repository }}/releases")
-            
-            if [[ -n "$latest_128" ]]; then
-              if ! echo "$all_repo_releases" | jq -e ".[] | select(.tag_name == \"nginx-$latest_128\")" > /dev/null; then
-                versions_to_build+=("$latest_128")
-              fi
-            fi
-            if [[ -n "$latest_129" ]]; then
-              if ! echo "$all_repo_releases" | jq -e ".[] | select(.tag_name == \"nginx-$latest_129\")" > /dev/null; then
-                versions_to_build+=("$latest_129")
-              fi
-            fi
-          else
-            # 手动触发模式：构建找到的所有最新版本
-            [[ -n "$latest_128" ]] && versions_to_build+=("$latest_128")
-            [[ -n "$latest_129" ]] && versions_to_build+=("$latest_129")
-          fi
+          # 构建版本数组（手动/自动均构建最新版本）
+          versions=()
+          [[ -n "$latest_128" ]] && versions+=("$latest_128")
+          [[ -n "$latest_129" ]] && versions+=("$latest_129")
 
-          # --- 关键修复 ---
-          if [ ${#versions_to_build[@]} -gt 0 ]; then
-          # 使用 -c 参数生成紧凑 JSON 数组（单行）
-            temp_json=$(printf '%s\n' "${versions_to_build[@]}" | jq -R . | jq -s -c .)
+          # 生成紧凑 JSON 数组
+          if [ ${#versions[@]} -gt 0 ]; then
+            temp_json=$(printf '%s\n' "${versions[@]}" | jq -R . | jq -s -c .)
+            should_build="true"
           else
             temp_json='[]'
-          fi
-
-          if [[ "$temp_json" == "[]" ]]; then
-            final_should_build="false"
-          else
-            final_should_build="true"
+            should_build="false"
           fi
 
           echo "versions_json=$temp_json" >> $GITHUB_OUTPUT
-          echo "should_build=$final_should_build" >> $GITHUB_OUTPUT
+          echo "should_build=$should_build" >> $GITHUB_OUTPUT
 
   build-binary:
     needs: find-releases
-    # 使用来自上一个 job 的布尔输出来决定是否运行
     if: needs.find-releases.outputs.should_build == 'true'
     strategy:
-      fail-fast: false # 如果某个版本构建失败，其他版本继续构建
-      # matrix 的值现在保证是一个有效的 JSON 数组，即使为空
+      fail-fast: false
       matrix:
         version: ${{ fromJson(needs.find-releases.outputs.versions_json) }}
-    runs-on: ubuntu-latest
+        arch: [x64, arm64]   # 添加架构维度
+    runs-on: ${{ matrix.arch == 'x64' && 'ubuntu-latest' || 'ubuntu-latest-arm' }}
     steps:
       - name: Setup Environment
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            gcc \
-            make \
-            libpcre3-dev \
-            zlib1g-dev \
-            libssl-dev \
-            libgd-dev \
-            libgeoip-dev \
-            libxml2-dev \
-            libxslt1-dev \
-            libperl-dev \
-            libbz2-dev \
-            libexpat1-dev \
-            libncurses5-dev \
-            libreadline-dev \
-            libtinfo-dev \
-            wget \
-            curl \
-            jq
+            gcc make libpcre3-dev zlib1g-dev libssl-dev libgd-dev libgeoip-dev \
+            libxml2-dev libxslt1-dev libperl-dev libbz2-dev libexpat1-dev \
+            libncurses5-dev libreadline-dev libtinfo-dev wget curl jq
 
       - name: Download Source Code for ${{ matrix.version }}
         run: |
           NGINX_VERSION="${{ matrix.version }}"
           DOWNLOAD_URL="https://github.com/nginx/nginx/archive/release-${NGINX_VERSION}.tar.gz"
-          echo "Downloading nginx source code version $NGINX_VERSION from $DOWNLOAD_URL..."
           wget -O "nginx-${NGINX_VERSION}.tar.gz" "$DOWNLOAD_URL"
 
       - name: Extract Source Code for ${{ matrix.version }}
         run: |
           NGINX_VERSION="${{ matrix.version }}"
-          ARCHIVE_NAME="nginx-${NGINX_VERSION}.tar.gz"
-          echo "Extracting $ARCHIVE_NAME and flattening directory structure..."
           mkdir nginx-src
-          tar -xzf "$ARCHIVE_NAME" -C nginx-src --strip-components=1
-          echo "Contents of nginx-src:"
+          tar -xzf "nginx-${NGINX_VERSION}.tar.gz" -C nginx-src --strip-components=1
           ls -la nginx-src/
 
-      - name: Configure and Build for ${{ matrix.version }}
+      - name: Configure and Build for ${{ matrix.version }} on ${{ matrix.arch }}
         working-directory: ./nginx-src
         run: |
           NGINX_VERSION="${{ matrix.version }}"
-          echo "Configuring nginx $NGINX_VERSION..."
           ./auto/configure \
             --prefix=/var/apps/Nginx/var \
             --sbin-path=/var/apps/Nginx/target/Nginx \
@@ -184,19 +134,17 @@ jobs:
             --with-stream_ssl_module \
             --with-mail \
             --with-mail_ssl_module
-          
-          echo "Building nginx $NGINX_VERSION..."
           make -j$(nproc)
 
-      - name: Extract Binary for ${{ matrix.version }}
+      - name: Extract Binary for ${{ matrix.version }} (${{ matrix.arch }})
         run: |
           NGINX_VERSION="${{ matrix.version }}"
-          echo "Copying built binary for $NGINX_VERSION to workspace root..."
-          cp nginx-src/objs/nginx "nginx-${NGINX_VERSION}"
-          ls -la "nginx-${NGINX_VERSION}"
+          ARCH="${{ matrix.arch }}"
+          cp nginx-src/objs/nginx "nginx-${NGINX_VERSION}-${ARCH}"
+          ls -la "nginx-${NGINX_VERSION}-${ARCH}"
 
-      - name: Upload Binary Artifact
+      - name: Upload Binary Artifact for ${{ matrix.version }} (${{ matrix.arch }})
         uses: actions/upload-artifact@v4
         with:
-          name: nginx-${{ matrix.version }}
-          path: nginx-${{ matrix.version }}
+          name: nginx-${{ matrix.version }}-${{ matrix.arch }}
+          path: nginx-${{ matrix.version }}-${{ matrix.arch }}
