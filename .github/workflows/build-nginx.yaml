@@ -16,6 +16,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        # 为了应对警告，可以添加环境变量提前使用 Node.js 24
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
       - name: Find Nginx releases to build
         id: set-matrix
@@ -74,17 +77,22 @@ jobs:
             [[ -n "$latest_129" ]] && versions_to_build+=("$latest_129")
           fi
 
-          # 将数组转换为 JSON 格式并输出
-          if [ ${#versions_to_build[@]} -eq 0 ]; then
-            # 如果没有要构建的版本，输出一个空数组
-            versions_json="[]"
-            should_build="false"
-          else
+          # --- 关键修复 ---
+          # 确保即使没有版本要构建，也输出一个有效的空 JSON 数组
+          if [ ${#versions_to_build[@]} -gt 0 ]; then
+            # 如果有版本要构建，将数组转换为 JSON
             versions_json=$(printf '%s\n' "${versions_to_build[@]}" | jq -R . | jq -s .)
             should_build="true"
+          else
+            # 如果没有版本要构建，明确设置为空数组和 false
+            versions_json="[]"
+            should_build="false"
           fi
+          
           echo "versions_to_build: $versions_json"
           echo "should_build=$should_build" >> $GITHUB_OUTPUT
+          echo "versions_json=$versions_json" >> $GITHUB_OUTPUT
+          # --- 修复结束 ---
 
   build-binary:
     needs: find-releases
@@ -92,6 +100,7 @@ jobs:
     if: needs.find-releases.outputs.should_build == 'true'
     strategy:
       fail-fast: false # 如果某个版本构建失败，其他版本继续构建
+      # matrix 的值现在保证是一个有效的 JSON 数组，即使为空
       matrix:
         version: ${{ fromJson(needs.find-releases.outputs.versions_json) }}
     runs-on: ubuntu-latest
