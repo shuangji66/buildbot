@@ -73,7 +73,7 @@ jobs:
       matrix:
         version: ${{ fromJson(needs.find-releases.outputs.versions_json) }}
         arch: [x64, arm64]   # 添加架构维度
-    runs-on: ${{ matrix.arch == 'x64' && 'ubuntu-latest' || 'ubuntu-latest-arm' }}
+    runs-on: ${{ matrix.arch == 'x64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
     steps:
       - name: Setup Environment
         run: |
