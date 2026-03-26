@@ -140,18 +140,12 @@ jobs:
           NGINX_VERSION="${{ matrix.version }}"
           echo "Extracting nginx-${NGINX_VERSION}.tar.gz..."
           tar -xzf "nginx-${NGINX_VERSION}.tar.gz"
-          mv "nginx-release-${NGINX_VERSION}" "nginx-release-${NGINX_VERSION}"
           ls -la
 
       - name: Configure and Build for ${{ matrix.version }}
         working-directory: ./nginx-release-${{ matrix.version }}
         run: |
           NGINX_VERSION="${{ matrix.version }}"
-          TAR_FILE="nginx-${NGINX_VERSION}.tar.gz"
-          DIR_NAME=$(tar -tf "$TAR_FILE" | head -1 | cut -f1 -d'/')
-          echo "Detected source directory: $DIR_NAME"
-    
-          cd "$DIR_NAME"
           echo "Configuring nginx $NGINX_VERSION..."
           ./configure \
             --prefix=/var/apps/Nginx/var \
