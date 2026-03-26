@@ -2,7 +2,7 @@ name: Build Nginx Binary
 
 on:
   schedule:
-    - cron: '0 18 * * *'  
+    - cron: '0 10 * * *'
   workflow_dispatch:
 
 jobs:
@@ -11,6 +11,8 @@ jobs:
     outputs:
       # 输出一个 JSON 字符串，包含所有需要构建的版本
       versions_json: ${{ steps.set-matrix.outputs.versions_json }}
+      # 输出一个标志，表示是否有版本需要构建
+      should_build: ${{ steps.set-matrix.outputs.should_build }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -73,14 +75,21 @@ jobs:
           fi
 
           # 将数组转换为 JSON 格式并输出
-          versions_json=$(printf '%s\n' "${versions_to_build[@]}" | jq -R . | jq -s .)
+          if [ ${#versions_to_build[@]} -eq 0 ]; then
+            # 如果没有要构建的版本，输出一个空数组
+            versions_json="[]"
+            should_build="false"
+          else
+            versions_json=$(printf '%s\n' "${versions_to_build[@]}" | jq -R . | jq -s .)
+            should_build="true"
+          fi
           echo "versions_to_build: $versions_json"
-          echo "versions_json=$versions_json" >> $GITHUB_OUTPUT
+          echo "should_build=$should_build" >> $GITHUB_OUTPUT
 
   build-binary:
     needs: find-releases
-    # 只有在找到需要构建的版本时才运行
-    if: ${{ fromJson(needs.find-releases.outputs.versions_json) != null && length(fromJson(needs.find-releases.outputs.versions_json)) > 0 }}
+    # 使用来自上一个 job 的布尔输出来决定是否运行
+    if: needs.find-releases.outputs.should_build == 'true'
     strategy:
       fail-fast: false # 如果某个版本构建失败，其他版本继续构建
       matrix:
