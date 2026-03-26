@@ -157,7 +157,7 @@ jobs:
           cd nginx-src
           echo "Now in: $(pwd)"
           echo "Configuring nginx $NGINX_VERSION..."
-          ./configure \
+          ./auto/configure \
             --prefix=/var/apps/Nginx/var \
             --sbin-path=/var/apps/Nginx/target/Nginx \
             --modules-path=/var/apps/Nginx/shares/etc/modules \
