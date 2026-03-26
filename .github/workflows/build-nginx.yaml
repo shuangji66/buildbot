@@ -2,7 +2,7 @@ name: Build Nginx Binary
 
 on:
   schedule:
-    - cron: '0 10 * * *'
+    - cron: '0 18 * * *'  # 每天北京时间次日凌晨 2:00 检查
   workflow_dispatch:
 
 jobs:
@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        # 为了应对警告，可以添加环境变量提前使用 Node.js 24
+        # 为了应对 Node.js 20 的弃用警告，启用 Node.js 24
         env:
           FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -78,20 +78,20 @@ jobs:
           fi
 
           # --- 关键修复 ---
-          # 确保即使没有版本要构建，也输出一个有效的空 JSON 数组
+          # 直接构建 JSON 数组字符串，避免复杂的 jq 流程
           if [ ${#versions_to_build[@]} -gt 0 ]; then
-            # 如果有版本要构建，将数组转换为 JSON
+            # 使用 printf 和 jq 来生成一个干净的 JSON 数组
             versions_json=$(printf '%s\n' "${versions_to_build[@]}" | jq -R . | jq -s .)
             should_build="true"
           else
             # 如果没有版本要构建，明确设置为空数组和 false
-            versions_json="[]"
+            versions_json='[]'
             should_build="false"
           fi
           
-          echo "versions_to_build: $versions_json"
-          echo "should_build=$should_build" >> $GITHUB_OUTPUT
+          # 将结果写入输出
           echo "versions_json=$versions_json" >> $GITHUB_OUTPUT
+          echo "should_build=$should_build" >> $GITHUB_OUTPUT
           # --- 修复结束 ---
 
   build-binary:
