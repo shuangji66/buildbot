@@ -140,6 +140,7 @@ jobs:
           NGINX_VERSION="${{ matrix.version }}"
           echo "Extracting nginx-${NGINX_VERSION}.tar.gz..."
           tar -xzf "nginx-${NGINX_VERSION}.tar.gz"
+          mv "nginx-release-${NGINX_VERSION}" "nginx-release-${NGINX_VERSION}"
           ls -la
 
       - name: Configure and Build for ${{ matrix.version }}
