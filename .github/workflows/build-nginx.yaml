@@ -78,20 +78,25 @@ jobs:
           fi
 
           # --- 关键修复 ---
-          # 直接构建 JSON 数组字符串，避免复杂的 jq 流程
+          # 先构建 JSON 字符串，存入一个临时变量
           if [ ${#versions_to_build[@]} -gt 0 ]; then
-            # 使用 printf 和 jq 来生成一个干净的 JSON 数组
-            versions_json=$(printf '%s\n' "${versions_to_build[@]}" | jq -R . | jq -s .)
-            should_build="true"
+            # 将数组元素逐行打印并通过管道传给 jq 生成 JSON 数组
+            temp_json=$(printf '%s\n' "${versions_to_build[@]}" | jq -R . | jq -s .)
           else
-            # 如果没有版本要构建，明确设置为空数组和 false
-            versions_json='[]'
-            should_build="false"
+            # 如果没有版本要构建，设置为空 JSON 数组
+            temp_json='[]'
           fi
           
-          # 将结果写入输出
-          echo "versions_json=$versions_json" >> $GITHUB_OUTPUT
-          echo "should_build=$should_build" >> $GITHUB_OUTPUT
+          # 然后根据临时变量的内容设置最终的 should_build 标志
+          if [[ "$temp_json" == "[]" ]]; then
+            final_should_build="false"
+          else
+            final_should_build="true"
+          fi
+          
+          # 最后，一次性干净地写入输出
+          echo "versions_json=$temp_json" >> $GITHUB_OUTPUT
+          echo "should_build=$final_should_build" >> $GITHUB_OUTPUT
           # --- 修复结束 ---
 
   build-binary:
