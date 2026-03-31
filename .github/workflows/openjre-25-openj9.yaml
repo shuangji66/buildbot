@@ -27,5 +27,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: java-files-${{ matrix.os }}
-          path: ${{ github.workspace }}/java # 假设提取的文件夹名为 java
+          path: ${{ github.workspace }}/openjdk
           retention-days: 5
