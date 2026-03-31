@@ -1,0 +1,31 @@
+name: Extract Java from Docker Image
+
+on:
+  workflow_dispatch: # 允许手动触发工作流
+
+jobs:
+  extract-java:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Java files from Docker image
+        run: |
+          # 拉取指定的 Docker 镜像
+          docker pull wushuo894/openj9:latest
+          
+          # 运行一个临时容器，将镜像内的 /opt/java/ 目录挂载到当前工作目录
+          # --rm 参数表示容器退出后自动删除
+          docker run --rm -v ${{ github.workspace }}:/output wushuo894/openj9:latest cp -r /opt/java/. /output/
+
+      - name: Upload Java files as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: java-files-${{ matrix.os }}
+          path: ${{ github.workspace }}/java # 假设提取的文件夹名为 java
+          retention-days: 5
