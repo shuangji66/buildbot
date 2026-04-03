@@ -2,11 +2,6 @@ name: Build Uptime Kuma
 
 on:
   workflow_dispatch:
-    inputs:
-      branch:
-        description: '要构建的仓库分支'
-        required: false
-        default: 'master'
 
 jobs:
   build:
