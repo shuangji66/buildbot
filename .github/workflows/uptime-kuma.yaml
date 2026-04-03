@@ -61,7 +61,6 @@ jobs:
           npm run download-dist
 
       - name: 提取指定文件和目录
-        id: extract
         run: |
           mkdir artifact_content
           cd uptime-kuma
@@ -141,7 +140,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: fpk-${{ matrix.os }}
-          path: build_workspace/${{ env.FINAL_FPK }}
+          path: build_workspace/*.fpk
           if-no-files-found: error
 
   publish:
@@ -156,21 +155,6 @@ jobs:
           pattern: fpk-*
           path: fpk_files
           merge-multiple: true
-
-      - name: 获取版本号（从任意一个文件名中提取）
-        id: get_version
-        run: |
-          # 查找第一个 .fpk 文件
-          FPK_FILE=$(find fpk_files -name "*.fpk" | head -n 1)
-          if [ -z "$FPK_FILE" ]; then
-            echo "错误：未找到任何 fpk 文件"
-            exit 1
-          fi
-          # 提取版本号：文件名格式 uptime-kuma-<version>-<arch>.fpk
-          BASENAME=$(basename "$FPK_FILE")
-          VERSION=$(echo "$BASENAME" | sed -E 's/^uptime-kuma-(.+)-[^-]+\.fpk$/\1/')
-          echo "version_clean=$VERSION" >> $GITHUB_OUTPUT
-          echo "版本号: $VERSION"
 
       - name: 生成当前日期 tag（格式 年.月.日）
         id: date_tag
@@ -187,20 +171,14 @@ jobs:
           REPO="shuangji66/Fndepot"
           TAG="${{ steps.date_tag.outputs.tag }}"
           TITLE="${{ steps.date_tag.outputs.RELEASE_TITLE }}"
+          NOTES="action构建更新uptime-kuma"
 
           # 检查 Release 是否已存在
           if gh release view "$TAG" --repo "$REPO" &>/dev/null; then
-            echo "Release $TAG 已存在，将添加资产并更新描述"
-            # 获取当前描述
-            CURRENT_BODY=$(gh release view "$TAG" --repo "$REPO" --json body -q .body)
-            # 生成新描述：追加本次打包物名称（使用 $'\n' 插入换行）
-            NEW_BODY="${CURRENT_BODY}"$'\n'"action构建更新: ${{ steps.get_version.outputs.version_clean }} 版本打包物"
-            # 更新 Release 描述（使用 --notes 而不是 --body）
-            gh release edit "$TAG" --repo "$REPO" --notes "$NEW_BODY"
+            echo "Release $TAG 已存在，将添加资产（不修改描述）"
           else
             echo "Release $TAG 不存在，将创建新 Release"
-            INITIAL_BODY="action构建更新: ${{ steps.get_version.outputs.version_clean }} 版本打包物"
-            gh release create "$TAG" --repo "$REPO" --title "$TITLE" --notes "$INITIAL_BODY"
+            gh release create "$TAG" --repo "$REPO" --title "$TITLE" --notes "$NOTES"
           fi
 
           # 上传所有 fpk 文件到该 Release
