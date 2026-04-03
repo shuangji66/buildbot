@@ -201,10 +201,10 @@ jobs:
             echo "Release $TAG 已存在，将添加资产并更新描述"
             # 获取当前描述
             CURRENT_BODY=$(gh release view "$TAG" --repo "$REPO" --json body -q .body)
-            # 生成新描述：将本次打包物名称追加到描述中（换行分隔）
-            NEW_BODY="${CURRENT_BODY}\n本次添加: ${{ steps.get_version.outputs.version_clean }} 版本打包物"
-            # 更新 Release 描述
-            gh release edit "$TAG" --repo "$REPO" --body "$NEW_BODY"
+            # 生成新描述：追加本次打包物名称（使用 $'\n' 插入换行）
+            NEW_BODY="${CURRENT_BODY}"$'\n'"本次添加: ${{ steps.get_version.outputs.version_clean }} 版本打包物"
+            # 更新 Release 描述（使用 --notes 而不是 --body）
+            gh release edit "$TAG" --repo "$REPO" --notes "$NEW_BODY"
           else
             echo "Release $TAG 不存在，将创建新 Release"
             INITIAL_BODY="本次添加: ${{ steps.get_version.outputs.version_clean }} 版本打包物"
