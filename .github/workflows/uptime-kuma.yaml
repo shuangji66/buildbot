@@ -1,0 +1,42 @@
+name: Build Uptime Kuma
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: '要构建的仓库分支'
+        required: false
+        default: 'master'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: 克隆 Uptime Kuma 仓库
+        uses: actions/checkout@v4
+        with:
+          repository: louislam/uptime-kuma
+          path: uptime-kuma
+          ref: ${{ github.event.inputs.branch || 'master' }}
+
+      - name: 安装 Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: uptime-kuma/package-lock.json
+
+      - name: 执行构建 (npm run setup)
+        run: |
+          cd uptime-kuma
+          npm run setup
+
+      - name: 上传整个 uptime-kuma 目录
+        uses: actions/upload-artifact@v4
+        with:
+          name: uptime-kuma-${{ matrix.os }}
+          path: uptime-kuma/
+          if-no-files-found: error
