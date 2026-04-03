@@ -144,14 +144,6 @@ jobs:
           path: build_workspace/${{ env.FINAL_FPK }}
           if-no-files-found: error
 
-      # 可选：保留中间产物（提取的目录和文件）
-      - name: 上传中间构建产物（仅指定文件和目录）
-        uses: actions/upload-artifact@v4
-        with:
-          name: uptime-kuma-build-${{ steps.set_version.outputs.version_clean }}-${{ matrix.os }}
-          path: artifact_content/
-          if-no-files-found: error
-
   publish:
     name: 发布到 Fndepot Release
     runs-on: ubuntu-24.04
