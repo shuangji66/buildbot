@@ -143,7 +143,7 @@ jobs:
           path: build_workspace/*.fpk
           if-no-files-found: error
 
- publish:
+  publish:
     name: 发布到 Fndepot Release
     runs-on: ubuntu-24.04
     needs: build
