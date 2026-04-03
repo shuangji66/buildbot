@@ -1,0 +1,17 @@
+appname=uptime-kuma
+version=${VERSION}
+display_name=uptime-kuma
+desc="""📈uptime-kuma面板，监控网站/API/端口/docker是否在线，支持 Telegram/邮件告警、漂亮的响应时间图表。"""
+platform=${PLATFORM}
+source=thirdparty
+maintainer=louislam
+maintainer_url=https://github.com/louislam/uptime-kuma
+distributor=shuangji66
+distributor_url=https://github.com/shuangji66/FnDepot
+ctl_stop=true
+install_dep_apps=nodejs_v24
+desktop_uidir=ui
+desktop_applaunchname=uptime-kuma.Application
+checkport=false
+disable_authorization_path=false
+changelog=更新上游版本

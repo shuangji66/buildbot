@@ -1,0 +1,21 @@
+[
+  {
+    "stepTitle": "欢迎使用",
+    "items": [
+      {
+        "type": "text",
+        "field": "ui_port",
+        "label": "webui端口",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "helpText": "安装时间较长，请耐心等待进度条...",
+        "initValue": "3001"
+      }
+    ]
+  }
+]

@@ -1,0 +1,18 @@
+{
+  ".url": {
+    "uptime-kuma.Application": {
+      "noDisplay": false,
+      "allUsers": true,
+      "fileTypes": [],
+      "control": {
+        "accessPerm": "readonly"
+      },
+      "title": "uptime-kuma",
+      "icon": "images/icon_{0}.png",
+      "type": "iframe",
+      "protocol": "http",
+      "port": "${ui_port}",
+      "url": ""
+    }
+  }
+}
