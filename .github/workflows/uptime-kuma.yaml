@@ -1,4 +1,4 @@
-name: Build Uptime Kuma
+name: Build Uptime-Kuma
 
 on:
   workflow_dispatch:
@@ -10,11 +10,26 @@ jobs:
         os: [ubuntu-24.04, ubuntu-24.04-arm]
     runs-on: ${{ matrix.os }}
     steps:
-      - name: 克隆 Uptime Kuma 仓库
-        uses: actions/checkout@v4
-        with:
-          repository: louislam/uptime-kuma
-          path: uptime-kuma
+      - name: 获取最新 Release 下载链接
+        id: get_release
+        run: |
+          # 调用 GitHub API 获取最新 release 的 tarball URL
+          API_URL="https://api.github.com/repos/louislam/uptime-kuma/releases/latest"
+          TARBALL_URL=$(curl -s $API_URL | jq -r .tarball_url)
+          if [ -z "$TARBALL_URL" ] || [ "$TARBALL_URL" = "null" ]; then
+            echo "错误：无法获取最新 release 的 tarball URL"
+            exit 1
+          fi
+          echo "tarball_url=$TARBALL_URL" >> $GITHUB_OUTPUT
+          echo "下载地址: $TARBALL_URL"
+
+      - name: 下载并解压源码包
+        run: |
+          curl -L "${{ steps.get_release.outputs.tarball_url }}" -o source.tar.gz
+          mkdir uptime-kuma
+          tar -xzf source.tar.gz --strip-components=1 -C uptime-kuma
+          rm source.tar.gz
+          ls -la uptime-kuma
 
       - name: 安装 Node.js 24
         uses: actions/setup-node@v4
@@ -23,10 +38,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: uptime-kuma/package-lock.json
 
-      - name: 执行构建 (npm run setup)
+      - name: 执行构建 (npm ci --omit dev --no-audit && npm run download-dist)
         run: |
           cd uptime-kuma
-          npm run setup
+          npm ci --omit dev --no-audit
+          npm run download-dist
 
       - name: 上传整个 uptime-kuma 目录
         uses: actions/upload-artifact@v4
