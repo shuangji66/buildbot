@@ -143,7 +143,7 @@ jobs:
           path: build_workspace/*.fpk
           if-no-files-found: error
 
-  publish:
+ publish:
     name: 发布到 Fndepot Release
     runs-on: ubuntu-24.04
     needs: build
@@ -171,14 +171,23 @@ jobs:
           REPO="shuangji66/Fndepot"
           TAG="${{ steps.date_tag.outputs.tag }}"
           TITLE="${{ steps.date_tag.outputs.RELEASE_TITLE }}"
-          NOTES="action构建更新uptime-kuma"
+          NEW_NOTE="action构建更新uptime-kuma"
 
           # 检查 Release 是否已存在
           if gh release view "$TAG" --repo "$REPO" &>/dev/null; then
-            echo "Release $TAG 已存在，将添加资产（不修改描述）"
+            echo "Release $TAG 已存在，将添加资产并追加描述"
+            # 获取当前描述
+            CURRENT_BODY=$(gh release view "$TAG" --repo "$REPO" --json body -q .body)
+            # 如果当前描述不为空，追加换行 + 新内容；否则直接使用新内容
+            if [ -n "$CURRENT_BODY" ]; then
+              NEW_BODY="${CURRENT_BODY}"$'\n'"$NEW_NOTE"
+            else
+              NEW_BODY="$NEW_NOTE"
+            fi
+            gh release edit "$TAG" --repo "$REPO" --notes "$NEW_BODY"
           else
             echo "Release $TAG 不存在，将创建新 Release"
-            gh release create "$TAG" --repo "$REPO" --title "$TITLE" --notes "$NOTES"
+            gh release create "$TAG" --repo "$REPO" --title "$TITLE" --notes "$NEW_NOTE"
           fi
 
           # 上传所有 fpk 文件到该 Release
