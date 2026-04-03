@@ -1,4 +1,4 @@
-name: Build Uptime-Kuma
+name: Build Uptime Kuma
 
 on:
   workflow_dispatch:
@@ -10,18 +10,25 @@ jobs:
         os: [ubuntu-24.04, ubuntu-24.04-arm]
     runs-on: ${{ matrix.os }}
     steps:
-      - name: 获取最新 Release 下载链接
+      - name: 获取最新 Release 信息（含版本号）
         id: get_release
         run: |
-          # 调用 GitHub API 获取最新 release 的 tarball URL
           API_URL="https://api.github.com/repos/louislam/uptime-kuma/releases/latest"
-          TARBALL_URL=$(curl -s $API_URL | jq -r .tarball_url)
+          RESPONSE=$(curl -s $API_URL)
+          TARBALL_URL=$(echo "$RESPONSE" | jq -r .tarball_url)
+          VERSION=$(echo "$RESPONSE" | jq -r .tag_name)
           if [ -z "$TARBALL_URL" ] || [ "$TARBALL_URL" = "null" ]; then
             echo "错误：无法获取最新 release 的 tarball URL"
             exit 1
           fi
+          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+            echo "警告：未获取到版本号，使用默认值 unknown"
+            VERSION="unknown"
+          fi
           echo "tarball_url=$TARBALL_URL" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "下载地址: $TARBALL_URL"
+          echo "版本号: $VERSION"
 
       - name: 下载并解压源码包
         run: |
@@ -47,6 +54,6 @@ jobs:
       - name: 上传整个 uptime-kuma 目录
         uses: actions/upload-artifact@v4
         with:
-          name: uptime-kuma-${{ matrix.os }}
+          name: uptime-kuma-${{ steps.get_release.outputs.version }}-${{ matrix.os }}
           path: uptime-kuma/
           if-no-files-found: error
