@@ -2,6 +2,11 @@ name: Build Uptime Kuma and Release
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Uptime Kuma 版本号（例如 2.2.1，不带 v）'
+        required: true
+        type: string
 
 jobs:
   build:
@@ -12,36 +17,23 @@ jobs:
     outputs:
       version_clean: ${{ steps.set_version.outputs.version_clean }}
     steps:
-      - name: 获取最新 Release 信息（含版本号）
-        id: get_release
-        run: |
-          API_URL="https://api.github.com/repos/louislam/uptime-kuma/releases/latest"
-          RESPONSE=$(curl -s $API_URL)
-          TARBALL_URL=$(echo "$RESPONSE" | jq -r .tarball_url)
-          VERSION=$(echo "$RESPONSE" | jq -r .tag_name)
-          if [ -z "$TARBALL_URL" ] || [ "$TARBALL_URL" = "null" ]; then
-            echo "错误：无法获取最新 release 的 tarball URL"
-            exit 1
-          fi
-          if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
-            echo "警告：未获取到版本号，使用默认值 unknown"
-            VERSION="unknown"
-          fi
-          echo "tarball_url=$TARBALL_URL" >> $GITHUB_OUTPUT
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "下载地址: $TARBALL_URL"
-          echo "版本号: $VERSION"
-
-      - name: 设置清理后的版本号
+      - name: 设置版本号（手动输入）
         id: set_version
         run: |
-          VERSION="${{ steps.get_release.outputs.version }}"
-          VERSION_CLEAN=${VERSION#v}
+          VERSION_CLEAN="${{ github.event.inputs.version }}"
+          if [ -z "$VERSION_CLEAN" ]; then
+            echo "错误：未提供版本号"
+            exit 1
+          fi
           echo "version_clean=$VERSION_CLEAN" >> $GITHUB_OUTPUT
+          echo "版本号: $VERSION_CLEAN"
 
-      - name: 下载并解压源码包
+      - name: 下载并解压源码包（使用指定版本号）
         run: |
-          curl -L "${{ steps.get_release.outputs.tarball_url }}" -o source.tar.gz
+          VERSION="${{ steps.set_version.outputs.version_clean }}"
+          DOWNLOAD_URL="https://github.com/louislam/uptime-kuma/archive/refs/tags/${VERSION}.tar.gz"
+          echo "下载地址: $DOWNLOAD_URL"
+          curl -L "$DOWNLOAD_URL" -o source.tar.gz
           mkdir uptime-kuma
           tar -xzf source.tar.gz --strip-components=1 -C uptime-kuma
           rm source.tar.gz
