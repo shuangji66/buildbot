@@ -1,0 +1,227 @@
+name: Build CloudSaver and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      docker_version:
+        description: 'CloudSaver Docker 镜像版本标签（例如 1.2.3）'
+        required: true
+        type: string
+      manifest_version:
+        description: 'manifest 中的版本号（例如 1.2.3，可不同于 docker 版本）'
+        required: true
+        type: string
+      changelog:
+        description: 'manifest 中的更新日志（支持中文）'
+        required: true
+        type: string
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    outputs:
+      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
+    steps:
+      - name: 设置变量（docker版本、manifest版本、changelog）
+        id: set_vars
+        run: |
+          DOCKER_VERSION="${{ github.event.inputs.docker_version }}"
+          MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          CHANGELOG="${{ github.event.inputs.changelog }}"
+          if [ -z "$DOCKER_VERSION" ] || [ -z "$MANIFEST_VERSION" ]; then
+            echo "错误：版本号不能为空"
+            exit 1
+          fi
+          echo "docker_version=$DOCKER_VERSION" >> $GITHUB_OUTPUT
+          echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "Docker 版本: $DOCKER_VERSION"
+          echo "manifest 版本: $MANIFEST_VERSION"
+          echo "更新日志: $CHANGELOG"
+
+      - name: 拉取 CloudSaver Docker 镜像
+        run: |
+          docker pull jiangrui1994/cloudsaver:${{ steps.set_vars.outputs.docker_version }}
+
+      - name: 从镜像中提取所需文件和目录
+        run: |
+          CONTAINER_ID=$(docker create jiangrui1994/cloudsaver:${{ steps.set_vars.outputs.docker_version }})
+          mkdir -p extracted/app/config
+          # 提取 /app/package.json
+          docker cp "$CONTAINER_ID":/app/package.json extracted/app/
+          # 提取 /app/config/release-content.local.json
+          docker cp "$CONTAINER_ID":/app/config/release-content.local.json extracted/app/config/
+          # 提取 /app/dist-final 目录
+          docker cp "$CONTAINER_ID":/app/dist-final extracted/app/
+          # 提取 /usr/share/nginx/html 目录
+          docker cp "$CONTAINER_ID":/usr/share/nginx/html extracted/app/
+          docker rm "$CONTAINER_ID"
+          echo "提取完成，目录结构："
+          ls -la extracted/
+          ls -la extracted/app/
+
+      - name: 检出本仓库 (shuangji66/buildbot)
+        uses: actions/checkout@v4
+        with:
+          path: buildbot_repo
+
+      - name: 准备 fnpack 打包工作区
+        run: |
+          mkdir -p build_workspace
+          cp -r buildbot_repo/fnpack/CloudSaver build_workspace/
+          if [ "${{ matrix.os }}" = "ubuntu-24.04" ]; then
+            FNPACK_BIN="fnpack-1.2.1-linux-amd64"
+            PLATFORM="x86"
+          else
+            FNPACK_BIN="fnpack-1.2.1-linux-arm64"
+            PLATFORM="arm"
+          fi
+          cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
+          chmod +x build_workspace/fnpack
+          echo "PLATFORM=$PLATFORM" >> $GITHUB_ENV
+
+      - name: 将提取的产物复制到 CloudSaver/app 模板目录
+        run: |
+          # 复制 package.json、dist-final、html 到 app 根目录
+          cp -r extracted/app/package.json build_workspace/CloudSaver/app/
+          cp -r extracted/app/dist-final build_workspace/CloudSaver/app/
+          cp -r extracted/app/html build_workspace/CloudSaver/app/
+          # 复制 release-content.local.json 到 app/config
+          cp -r extracted/app/config/release-content.local.json build_workspace/CloudSaver/app/config/
+          echo "复制完成，app 目录内容："
+          ls -la build_workspace/CloudSaver/app/
+
+      - name: 安装 Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: build_workspace/CloudSaver/app/package-lock.json
+
+      - name: 执行 npm install
+        run: |
+          cd build_workspace/CloudSaver/app
+          npm install
+          # 删除 node_modules 下所有层级的 .bin 目录（减小体积）
+          find node_modules -type d -name ".bin" -exec rm -rf {} + 2>/dev/null || true
+
+      - name: 根据架构处理 nginx 二进制（重命名并删除另一架构）
+        run: |
+          NGINX_DIR="build_workspace/CloudSaver/app/nginx"
+          if [ ! -d "$NGINX_DIR" ]; then
+            echo "警告：nginx 目录不存在，跳过处理"
+            exit 0
+          fi
+          if [ "${{ env.PLATFORM }}" = "x86" ]; then
+            TARGET="nginx-x86"
+            OTHER="nginx-arm"
+          else
+            TARGET="nginx-arm"
+            OTHER="nginx-x86"
+          fi
+          if [ -e "$NGINX_DIR/$TARGET" ]; then
+            mv "$NGINX_DIR/$TARGET" "$NGINX_DIR/nginx-cs"
+            echo "已将 $TARGET 重命名为 nginx-cs"
+          else
+            echo "错误：未找到对应架构的 nginx 文件/目录 $TARGET"
+            exit 1
+          fi
+          if [ -e "$NGINX_DIR/$OTHER" ]; then
+            rm -rf "$NGINX_DIR/$OTHER"
+            echo "已删除另一架构文件/目录 $OTHER"
+          fi
+          ls -la "$NGINX_DIR"
+
+      - name: 修改 manifest 文件（替换版本号、更新日志和平台）
+        run: |
+          MANIFEST_PATH="build_workspace/CloudSaver/manifest"
+          if [ ! -f "$MANIFEST_PATH" ]; then
+            echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
+            exit 1
+          fi
+          MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
+          CHANGELOG="${{ steps.set_vars.outputs.changelog }}"
+          # 对 changelog 进行转义，防止 sed 出错（转义 &, /, 换行等）
+          ESCAPED_CHANGELOG=$(printf '%s\n' "$CHANGELOG" | sed 's/[&/\]/\\&/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+          sed -i "s/\${VERSION}/$MANIFEST_VERSION/g" "$MANIFEST_PATH"
+          sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
+          sed -i "s/\${PLATFORM}/${{ env.PLATFORM }}/g" "$MANIFEST_PATH"
+          echo "manifest 修改后的内容："
+          cat "$MANIFEST_PATH"
+
+      - name: 执行 fnpack 打包
+        run: |
+          cd build_workspace
+          ./fnpack build CloudSaver
+          FPK_FILE=$(ls *.fpk | head -n 1)
+          if [ -z "$FPK_FILE" ]; then
+            echo "错误：未找到生成的 fpk 文件"
+            exit 1
+          fi
+          FINAL_NAME="cloudsaver-${{ steps.set_vars.outputs.manifest_version }}-${{ env.PLATFORM }}.fpk"
+          mv "$FPK_FILE" "$FINAL_NAME"
+          echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
+          echo "打包完成，生成文件：$FINAL_NAME"
+          ls -la *.fpk
+
+      - name: 上传 fpk 文件作为 Artifact（供发布任务使用）
+        uses: actions/upload-artifact@v4
+        with:
+          name: fpk-${{ matrix.os }}
+          path: build_workspace/*.fpk
+          if-no-files-found: error
+
+  publish:
+    name: 发布到 Fndepot Release
+    runs-on: ubuntu-24.04
+    needs: build
+    if: always() && needs.build.result == 'success'
+    steps:
+      - name: 下载所有架构的 fpk 文件
+        uses: actions/download-artifact@v4
+        with:
+          pattern: fpk-*
+          path: fpk_files
+          merge-multiple: true
+
+      - name: 生成当前日期 tag（格式 年.月.日）
+        id: date_tag
+        run: |
+          TAG=$(date +'%Y.%-m.%-d')
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "RELEASE_TITLE=【$TAG 更新】CloudSaver" >> $GITHUB_OUTPUT
+          echo "Tag: $TAG"
+
+      - name: 使用 GitHub CLI 发布到 shuangji66/Fndepot
+        env:
+          GH_TOKEN: ${{ secrets.BUILDBOT }}
+        run: |
+          REPO="shuangji66/Fndepot"
+          TAG="${{ steps.date_tag.outputs.tag }}"
+          TITLE="${{ steps.date_tag.outputs.RELEASE_TITLE }}"
+          # 从 build job 获取 manifest 版本和 changelog（通过 needs.build.outputs）
+          MANIFEST_VERSION="${{ needs.build.outputs.manifest_version }}"
+          CHANGELOG="${{ github.event.inputs.changelog }}"
+          NEW_NOTE="构建 CloudSaver 版本 ${MANIFEST_VERSION}，基于 Docker 镜像 ${{ github.event.inputs.docker_version }}。更新日志：${CHANGELOG}"
+
+          if gh release view "$TAG" --repo "$REPO" &>/dev/null; then
+            echo "Release $TAG 已存在，将添加资产并追加描述"
+            CURRENT_BODY=$(gh release view "$TAG" --repo "$REPO" --json body -q .body)
+            if [ -n "$CURRENT_BODY" ]; then
+              NEW_BODY="${CURRENT_BODY}"$'\n'"$NEW_NOTE"
+            else
+              NEW_BODY="$NEW_NOTE"
+            fi
+            gh release edit "$TAG" --repo "$REPO" --notes "$NEW_BODY"
+          else
+            echo "Release $TAG 不存在，将创建新 Release"
+            gh release create "$TAG" --repo "$REPO" --title "$TITLE" --notes "$NEW_NOTE"
+          fi
+
+          for fpk in fpk_files/*.fpk; do
+            echo "上传 $fpk"
+            gh release upload "$TAG" "$fpk" --repo "$REPO" --clobber
+          done
