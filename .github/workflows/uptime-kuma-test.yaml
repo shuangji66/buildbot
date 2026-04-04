@@ -98,7 +98,7 @@ jobs:
         run: |
           mkdir -p build_workspace/uptime-kuma/app/server
           cp -r artifact_content/* build_workspace/uptime-kuma/app/server/
-          rm -rf build_workspace/uptime-kuma/app/server/node_modules/.bin
+          find build_workspace/uptime-kuma/app/server/node_modules -type d -name ".bin" -exec rm -rf {} + 2>/dev/null || true
 
       - name: 修改 manifest 文件（替换版本号和平台）
         run: |
