@@ -4,7 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Uptime Kuma 版本号（例如 2.2.1，不带 v）'
+        description: 'Uptime Kuma 源码版本号（例如 2.2.1，不带 v）'
+        required: true
+        type: string
+      manifest_version:
+        description: 'manifest 中的版本号（例如 2.2.1，可不同于源码版本）'
+        required: true
+        type: string
+      changelog:
+        description: 'manifest 中的更新日志（支持中文）'
         required: true
         type: string
 
@@ -15,23 +23,29 @@ jobs:
         os: [ubuntu-24.04, ubuntu-24.04-arm]
     runs-on: ${{ matrix.os }}
     outputs:
-      version_clean: ${{ steps.set_version.outputs.version_clean }}
+      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
     steps:
-      - name: 设置版本号（手动输入）
-        id: set_version
+      - name: 设置变量（源码版本、manifest版本、changelog）
+        id: set_vars
         run: |
-          VERSION_CLEAN="${{ github.event.inputs.version }}"
-          if [ -z "$VERSION_CLEAN" ]; then
-            echo "错误：未提供版本号"
+          VERSION_SOURCE="${{ github.event.inputs.version }}"
+          MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          CHANGELOG="${{ github.event.inputs.changelog }}"
+          if [ -z "$VERSION_SOURCE" ] || [ -z "$MANIFEST_VERSION" ]; then
+            echo "错误：版本号不能为空"
             exit 1
           fi
-          echo "version_clean=$VERSION_CLEAN" >> $GITHUB_OUTPUT
-          echo "版本号: $VERSION_CLEAN"
+          echo "version_source=$VERSION_SOURCE" >> $GITHUB_OUTPUT
+          echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "源码版本: $VERSION_SOURCE"
+          echo "manifest版本: $MANIFEST_VERSION"
+          echo "更新日志: $CHANGELOG"
 
-      - name: 下载并解压源码包（使用指定版本号）
+      - name: 下载并解压源码包（使用指定的源码版本号）
         run: |
-          VERSION="${{ steps.set_version.outputs.version_clean }}"
-          DOWNLOAD_URL="https://github.com/louislam/uptime-kuma/archive/refs/tags/${VERSION}.tar.gz"
+          VERSION_SOURCE="${{ steps.set_vars.outputs.version_source }}"
+          DOWNLOAD_URL="https://github.com/louislam/uptime-kuma/archive/refs/tags/${VERSION_SOURCE}.tar.gz"
           echo "下载地址: $DOWNLOAD_URL"
           curl -L "$DOWNLOAD_URL" -o source.tar.gz
           mkdir uptime-kuma
@@ -98,17 +112,22 @@ jobs:
         run: |
           mkdir -p build_workspace/uptime-kuma/app/server
           cp -r artifact_content/* build_workspace/uptime-kuma/app/server/
+          # 删除 node_modules 下所有层级的 .bin 目录
           find build_workspace/uptime-kuma/app/server/node_modules -type d -name ".bin" -exec rm -rf {} + 2>/dev/null || true
 
-      - name: 修改 manifest 文件（替换版本号和平台）
+      - name: 修改 manifest 文件（替换版本号和更新日志）
         run: |
           MANIFEST_PATH="build_workspace/uptime-kuma/manifest"
           if [ ! -f "$MANIFEST_PATH" ]; then
             echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
             exit 1
           fi
-          VERSION_CLEAN="${{ steps.set_version.outputs.version_clean }}"
-          sed -i "s/\${VERSION}/$VERSION_CLEAN/g" "$MANIFEST_PATH"
+          MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
+          CHANGELOG="${{ steps.set_vars.outputs.changelog }}"
+          # 对 changelog 进行转义，防止 sed 出错（转义 &, /, 换行等）
+          ESCAPED_CHANGELOG=$(printf '%s\n' "$CHANGELOG" | sed 's/[&/\]/\\&/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+          sed -i "s/\${VERSION}/$MANIFEST_VERSION/g" "$MANIFEST_PATH"
+          sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
           sed -i "s/\${PLATFORM}/${{ env.PLATFORM }}/g" "$MANIFEST_PATH"
           echo "manifest 修改后的内容："
           cat "$MANIFEST_PATH"
@@ -122,8 +141,8 @@ jobs:
             echo "错误：未找到生成的 fpk 文件"
             exit 1
           fi
-          VERSION_CLEAN="${{ steps.set_version.outputs.version_clean }}"
-          FINAL_NAME="uptime-kuma-${VERSION_CLEAN}-${{ env.PLATFORM }}.fpk"
+          # fpk 文件名使用 manifest 版本号
+          FINAL_NAME="uptime-kuma-${{ steps.set_vars.outputs.manifest_version }}-${{ env.PLATFORM }}.fpk"
           mv "$FPK_FILE" "$FINAL_NAME"
           echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
           echo "打包完成，生成文件：$FINAL_NAME"
