@@ -159,7 +159,7 @@ jobs:
             echo "错误：未找到生成的 fpk 文件"
             exit 1
           fi
-          FINAL_NAME="cloudsaver-${{ steps.set_vars.outputs.manifest_version }}-${{ env.PLATFORM }}.fpk"
+          FINAL_NAME="CloudSaver-${{ steps.set_vars.outputs.manifest_version }}-${{ env.PLATFORM }}.fpk"
           mv "$FPK_FILE" "$FINAL_NAME"
           echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
           echo "打包完成，生成文件：$FINAL_NAME"
