@@ -1,5 +1,6 @@
 #!/bin/bash
-
-### This script is called after the user installs the application.
+export PATH=/var/apps/nodejs_v24/target/bin:$PATH
+cd ${TRIM_APPDEST}/server
+npm rebuild
 
 exit 0
