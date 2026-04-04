@@ -1,0 +1,13 @@
+#!/bin/bash
+export PATH=/var/apps/nodejs_v24/target/bin:$PATH
+cd ${TRIM_APPDEST}
+npm rebuild
+mkdir ${TRIM_PKGVAR}/logs
+mkdir ${TRIM_PKGVAR}/data
+ln -s ${TRIM_PKGVAR}/data ${TRIM_APPDEST}/data
+ln -s ${TRIM_PKGVAR}/logs ${TRIM_APPDEST}/logs
+touch ${TRIM_PKGVAR}/logs/error.log
+touch ${TRIM_PKGVAR}/logs/access.log
+mkdir -p ${TRIM_PKGVAR}/cache/{client_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp}
+
+exit 0

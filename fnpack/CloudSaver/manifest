@@ -1,0 +1,17 @@
+appname=CloudSaver
+version=${VERSION}
+display_name=CloudSaver
+desc="""☁️一个基于 Vue 3 + Express 的网盘资源搜索与转存工具，支持响应式布局，移动端与PC完美适配，基于原docker重新打包。使用方法参考<a href="https://www.yuque.com/xiaoruihenbangde/ggogn3/ga6gaaiy5fsyw62l" target="_blank">官方文档</a>，密码me16。"""
+platform=${PLATFORM}
+source=thirdparty
+maintainer=jiangrui1994
+maintainer_url=https://github.com/jiangrui1994/CloudSaver
+distributor=shuangji66
+distributor_url=https://github.com/shuangji66/FnDepot
+ctl_stop=true
+install_dep_apps=nodejs_v24
+desktop_uidir=ui
+desktop_applaunchname=CloudSaver.Application
+checkport=false
+disable_authorization_path=false
+changelog=${CHANGELOG}

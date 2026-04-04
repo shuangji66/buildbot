@@ -1,0 +1,15 @@
+[
+  {
+    "stepTitle": "欢迎使用",
+    "items": [
+      {
+        "type": "tips",
+        "field": "wizard_default",
+        "label": "示例项",
+        "rules": [],
+        "options": [],
+        "helpText": "源项目已AI重构，喜欢Cloudsaver的可以打赏支持一下原作者"
+      }
+    ]
+  }
+]

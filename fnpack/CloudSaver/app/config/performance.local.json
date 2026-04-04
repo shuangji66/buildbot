@@ -1,0 +1,20 @@
+{
+  "imageProxy": {
+    "connectTimeoutMs": 4000,
+    "totalTimeoutMs": 10000,
+    "readTimeoutMs": 7000,
+    "maxInflight": 40,
+    "maxInflightPerHost": 12,
+    "maxQueue": 120,
+    "retryCount": 0,
+    "retryDelayMs": 200,
+    "maxSockets": 64,
+    "maxFreeSockets": 16
+  },
+  "requestBudget": {
+    "searchMaxInflight": 8,
+    "validityCheckMaxInflight": 6,
+    "validityCheckStartDelayMs": 1000,
+    "validityCheckPauseWhenSearchBusy": true
+  }
+}

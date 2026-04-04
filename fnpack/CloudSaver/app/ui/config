@@ -1,0 +1,18 @@
+{
+  ".url": {
+    "CloudSaver.Application": {
+      "noDisplay": false,
+      "allUsers": true,
+      "fileTypes": [],
+      "control": {
+        "accessPerm": "readonly"
+      },
+      "protocol": "http",
+      "title": "CloudSaver",
+      "icon": "images/icon_{0}.png",
+      "type": "iframe",
+      "port": "8008",
+      "url": ""
+    }
+  }
+}

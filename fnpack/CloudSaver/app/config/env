@@ -1,0 +1,22 @@
+# JWT配置
+JWT_SECRET=your_jwt_secret_here
+# 生产环境请使用强随机密钥，建议 >= 16 位且包含大小写字母、数字、特殊字符
+# Token 过期时间（例如：6h、7d、30m）
+JWT_EXPIRES_IN=6h
+
+# 插件外呼域名白名单（可选，留空表示允许所有公网域名）
+# PLUGIN_ALLOWED_HOSTS=api.example.com,hooks.example.net
+
+# 是否阻止插件访问内网/本地地址（默认 false，按需开启）
+# PLUGIN_BLOCK_PRIVATE_NETWORK=false
+
+# 搜索缓存 TTL（秒，范围 30-120）
+# SEARCH_CACHE_TTL_SECONDS=60
+
+# 设置读取缓存 TTL（秒，范围 30-300）
+# SETTINGS_CACHE_TTL_SECONDS=60
+
+# 日志配置
+# LOG_LEVEL=info
+# LOG_SAMPLE_RATE=1
+# LOG_MAX_MESSAGE_LENGTH=1000
