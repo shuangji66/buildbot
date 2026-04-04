@@ -98,8 +98,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: build_workspace/CloudSaver/app/package-lock.json
 
       - name: 执行 npm install
         run: |
