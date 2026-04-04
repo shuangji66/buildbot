@@ -47,12 +47,10 @@ jobs:
           rm source.tar.gz
           ls -la uptime-kuma
 
-      - name: 使用 Docker 构建并提取产物（node:24.14.1-bookworm，以普通用户身份）
+      - name: 使用 Docker 构建并提取产物（以 root 身份运行，避免软链接权限问题）
         run: |
           mkdir -p artifact_content
           docker run --rm \
-            --user $(id -u):$(id -g) \
-            -e HOME=/tmp/home \
             -v $(pwd)/uptime-kuma:/var/apps/uptime-kuma/target/server \
             -v $(pwd)/artifact_content:/tmp/artifact_content \
             -w /var/apps/uptime-kuma/target/server \
@@ -81,7 +79,13 @@ jobs:
               echo '提取完成，内容：'
               ls -la /tmp/artifact_content/
             "
-          echo "宿主机 artifact_content 内容："
+          echo "宿主机 artifact_content 内容（root 所有）："
+          ls -la artifact_content/
+
+      - name: 修复产物文件权限（改为 runner 用户所有）
+        run: |
+          sudo chown -R $(id -u):$(id -g) artifact_content
+          echo "权限修复后："
           ls -la artifact_content/
 
       - name: 检出本仓库 (shuangji66/buildbot)
