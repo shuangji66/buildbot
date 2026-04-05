@@ -97,7 +97,7 @@ jobs:
       # =====================================
 
       - name: 调用通用 fnpack 打包与上传
-        uses: buildbot_repo/.github/actions/fnpack-pack
+        uses: ./.github/actions/fnpack-pack
         with:
           app_name: ${{ steps.set_vars.outputs.app_name }}
           manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
