@@ -74,13 +74,13 @@ jobs:
       - name: 准备 fnpack 工具和模板
         run: |
           mkdir -p build_workspace
-          cp -r "./fnpack/${{ steps.set_vars.outputs.app_name }}" build_workspace/
+          cp -r fnpack/${{ steps.set_vars.outputs.app_name }} build_workspace/
           if [ "${{ matrix.os }}" = "ubuntu-24.04" ]; then
             FNPACK_BIN="fnpack-1.2.1-linux-amd64"
           else
             FNPACK_BIN="fnpack-1.2.1-linux-arm64"
           fi
-          cp "./fnpack/$FNPACK_BIN" build_workspace/fnpack
+          cp fnpack/$FNPACK_BIN build_workspace/fnpack
           chmod +x build_workspace/fnpack
 
       # ========== 项目特有的复制步骤 ==========
