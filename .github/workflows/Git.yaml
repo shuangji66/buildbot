@@ -58,8 +58,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y \
-            build-essential libcurl4-gnutls-dev libssl-dev libexpat1-dev \
-            gettext wget
+            build-essential libcurl4-gnutls-dev libssl-dev libexpat1-dev gettext wget zlib1g-dev tar
 
       - name: 下载并解压 Git 源码
         run: |
