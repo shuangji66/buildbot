@@ -127,10 +127,10 @@ jobs:
           echo "打包完成，生成文件：$FINAL_NAME"
           ls -la *.fpk
 
-      - name: 上传 fpk 文件作为 Artifact
+      - name: 上传 fpk 文件作为 Artifact（区分架构）
         uses: actions/upload-artifact@v7
         with:
-          name: direct-file
+          name: fpk-${{ steps.arch.outputs.platform }}
           path: build_workspace/*.fpk
           archive: false
 
@@ -138,11 +138,55 @@ jobs:
     name: 发布到 Fndepot Release
     needs: build
     if: always() && needs.build.result == 'success'
-    uses: ./.github/workflows/publish.yaml
-    with:
-      app_name: ${{ needs.build.outputs.app_name }}
-      manifest_version: ${{ needs.build.outputs.manifest_version }}
-      upstream_version: ${{ needs.build.outputs.upstream_version }}
-      changelog: ${{ needs.build.outputs.changelog }}
-    secrets:
-      BUILDBOT: ${{ secrets.BUILDBOT }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: 下载所有架构的 fpk 文件
+        uses: actions/download-artifact@v7
+        with:
+          pattern: fpk-*
+          path: fpk_files
+          merge-multiple: true
+
+      - name: 生成当前日期 tag（格式 年.月.日）
+        id: date_tag
+        run: |
+          TAG=$(date +'%Y.%-m.%-d')
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "RELEASE_TITLE=【$TAG 更新】" >> $GITHUB_OUTPUT
+          echo "Tag: $TAG"
+
+      - name: 使用 GitHub CLI 发布到 shuangji66/Fndepot
+        env:
+          GH_TOKEN: ${{ secrets.BUILDBOT }}
+        run: |
+          REPO="shuangji66/Fndepot"
+          TAG="${{ steps.date_tag.outputs.tag }}"
+          TITLE="${{ steps.date_tag.outputs.RELEASE_TITLE }}"
+          MANIFEST_VERSION="${{ needs.build.outputs.manifest_version }}"
+          UPSTREAM_VERSION="${{ needs.build.outputs.upstream_version }}"
+          CHANGELOG="${{ needs.build.outputs.changelog }}"
+
+          if [ -n "$UPSTREAM_VERSION" ]; then
+            NEW_NOTE="构建 ${{ needs.build.outputs.app_name }} 版本 ${MANIFEST_VERSION}（基于上游 v${UPSTREAM_VERSION}）。更新日志：${CHANGELOG}"
+          else
+            NEW_NOTE="构建 ${{ needs.build.outputs.app_name }} 版本 ${MANIFEST_VERSION}。更新日志：${CHANGELOG}"
+          fi
+
+          if gh release view "$TAG" --repo "$REPO" &>/dev/null; then
+            echo "Release $TAG 已存在，将添加资产并追加描述"
+            CURRENT_BODY=$(gh release view "$TAG" --repo "$REPO" --json body -q .body)
+            if [ -n "$CURRENT_BODY" ]; then
+              NEW_BODY="${CURRENT_BODY}"$'\n'"$NEW_NOTE"
+            else
+              NEW_BODY="$NEW_NOTE"
+            fi
+            gh release edit "$TAG" --repo "$REPO" --notes "$NEW_BODY"
+          else
+            echo "Release $TAG 不存在，将创建新 Release"
+            gh release create "$TAG" --repo "$REPO" --title "$TITLE" --notes "$NEW_NOTE"
+          fi
+
+          for fpk in fpk_files/*.fpk; do
+            echo "上传 $fpk"
+            gh release upload "$TAG" "$fpk" --repo "$REPO" --clobber
+          done
