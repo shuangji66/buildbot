@@ -96,13 +96,43 @@ jobs:
           cp "${{ steps.set_vars.outputs.binary_name }}" "$APP_DIR/server/"
       # =====================================
 
-      - name: 调用通用 fnpack 打包与上传
-        uses: .github/actions/fnpack-pack
+      - name: 修改 manifest 文件
+        run: |
+          MANIFEST_PATH="build_workspace/${{ steps.set_vars.outputs.app_name }}/manifest"
+          if [ ! -f "$MANIFEST_PATH" ]; then
+            echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
+            exit 1
+          fi
+          MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
+          CHANGELOG="${{ steps.set_vars.outputs.changelog }}"
+          ESCAPED_CHANGELOG=$(printf '%s\n' "$CHANGELOG" | sed 's/[&/\]/\\&/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+          sed -i "s/\${VERSION}/$MANIFEST_VERSION/g" "$MANIFEST_PATH"
+          sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
+          sed -i "s/\${PLATFORM}/${{ steps.arch.outputs.platform }}/g" "$MANIFEST_PATH"
+          echo "manifest 修改后的内容："
+          cat "$MANIFEST_PATH"
+
+      - name: 执行 fnpack 打包
+        run: |
+          cd build_workspace
+          ./fnpack build "${{ steps.set_vars.outputs.app_name }}"
+          FPK_FILE=$(ls *.fpk | head -n 1)
+          if [ -z "$FPK_FILE" ]; then
+            echo "错误：未找到生成的 fpk 文件"
+            exit 1
+          fi
+          FINAL_NAME="${{ steps.set_vars.outputs.app_name }}-${{ steps.set_vars.outputs.manifest_version }}-${{ steps.arch.outputs.platform }}.fpk"
+          mv "$FPK_FILE" "$FINAL_NAME"
+          echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
+          echo "打包完成，生成文件：$FINAL_NAME"
+          ls -la *.fpk
+
+      - name: 上传 fpk 文件作为 Artifact
+        uses: actions/upload-artifact@v7
         with:
-          app_name: ${{ steps.set_vars.outputs.app_name }}
-          manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
-          changelog: ${{ steps.set_vars.outputs.changelog }}
-          platform: ${{ steps.arch.outputs.platform }}
+          name: fpk-${{ matrix.os }}
+          path: build_workspace/*.fpk
+          if-no-files-found: error
 
   publish:
     name: 发布到 Fndepot Release
