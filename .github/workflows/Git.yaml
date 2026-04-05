@@ -72,7 +72,7 @@ jobs:
         run: |
           ./configure --prefix=/var/apps/Git/target
           make -j$(nproc)
-          make install-strip
+          make strip install
 
       # ========== 新增：下载并集成 git-lfs ==========
       - name: 下载并安装 git-lfs
