@@ -1,0 +1,15 @@
+{
+  "usr-local-linker": {
+    "bin": [
+      "bin/git",
+      "bin/git-cvsserver",
+      "bin/git-receive-pack",
+      "bin/git-shell",
+      "bin/git-upload-archive",
+      "bin/git-upload-pack",
+      "bin/gitk",
+      "bin/scalar",
+      "bin/git-lfs"
+    ]
+  }
+}

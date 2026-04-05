@@ -1,0 +1,14 @@
+appname=Git
+version=${VERSION}
+display_name=Git
+desc="""Git是一个快速、可扩展的分布式版本控制系统，它具有异常丰富的命令集，既提供高级操作，也允许完全访问内部结构"""
+platform=${PLATFORM}
+source=thirdparty
+maintainer=Git
+maintainer_url=https://git-scm.com/
+distributor=shuangji66
+distributor_url=https://github.com/shuangji66/FnDepot
+ctl_stop=false
+checkport=false
+disable_authorization_path=false
+changelog=${CHANGELOG}
