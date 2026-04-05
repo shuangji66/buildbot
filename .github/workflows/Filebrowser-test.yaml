@@ -1,0 +1,138 @@
+name: Build Filebrowser and test
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Filebrowser 版本号（不带 v，例如 2.63.1）'
+        required: true
+        type: string
+      manifest_version:
+        description: 'manifest 中的版本号（例如 1.0.0，用于 fpk 包）'
+        required: true
+        type: string
+      changelog:
+        description: '更新日志（支持中文）'
+        required: true
+        type: string
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    outputs:
+      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
+    steps:
+      - name: 设置变量（版本、changelog、架构）
+        id: set_vars
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          CHANGELOG="${{ github.event.inputs.changelog }}"
+          if [ -z "$VERSION" ] || [ -z "$MANIFEST_VERSION" ]; then
+            echo "错误：版本号不能为空"
+            exit 1
+          fi
+          echo "filebrowser_version=$VERSION" >> $GITHUB_OUTPUT
+          echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "Filebrowser 版本: $VERSION"
+          echo "manifest 版本: $MANIFEST_VERSION"
+          echo "更新日志: $CHANGELOG"
+
+      - name: 确定目标架构和下载 URL
+        id: arch
+        run: |
+          if [ "${{ matrix.os }}" = "ubuntu-24.04" ]; then
+            ARCH="amd64"
+            PLATFORM="x86"
+          else
+            ARCH="arm64"
+            PLATFORM="arm"
+          fi
+          echo "arch=$ARCH" >> $GITHUB_OUTPUT
+          echo "platform=$PLATFORM" >> $GITHUB_OUTPUT
+          echo "下载架构: $ARCH, 平台标识: $PLATFORM"
+
+      - name: 下载 Filebrowser 二进制包
+        run: |
+          VERSION="${{ steps.set_vars.outputs.filebrowser_version }}"
+          ARCH="${{ steps.arch.outputs.arch }}"
+          URL="https://github.com/filebrowser/filebrowser/releases/download/v${VERSION}/linux-${ARCH}-filebrowser.tar.gz"
+          echo "下载地址: $URL"
+          curl -L -o filebrowser.tar.gz "$URL"
+          tar -xzf filebrowser.tar.gz
+          ls -la
+          # 解压后应得到 filebrowser 二进制文件
+          if [ ! -f "filebrowser" ]; then
+            echo "错误：未找到 filebrowser 二进制文件"
+            exit 1
+          fi
+          chmod +x filebrowser
+          echo "二进制文件信息:"
+          file filebrowser
+
+      - name: 检出本仓库 (shuangji66/buildbot)
+        uses: actions/checkout@v4
+        with:
+          path: buildbot_repo
+
+      - name: 准备 fnpack 打包工作区
+        run: |
+          mkdir -p build_workspace
+          cp -r buildbot_repo/fnpack/Filebrowser build_workspace/
+          if [ "${{ matrix.os }}" = "ubuntu-24.04" ]; then
+            FNPACK_BIN="fnpack-1.2.1-linux-amd64"
+          else
+            FNPACK_BIN="fnpack-1.2.1-linux-arm64"
+          fi
+          cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
+          chmod +x build_workspace/fnpack
+
+      - name: 将 filebrowser 二进制复制到 app/server 目录
+        run: |
+          mkdir -p build_workspace/Filebrowser/app/server
+          cp filebrowser build_workspace/Filebrowser/app/server/
+          echo "复制完成，app/server 目录内容："
+          ls -la build_workspace/Filebrowser/app/server/
+
+      - name: 修改 manifest 文件（替换版本号、更新日志和平台）
+        run: |
+          MANIFEST_PATH="build_workspace/Filebrowser/manifest"
+          if [ ! -f "$MANIFEST_PATH" ]; then
+            echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
+            exit 1
+          fi
+          MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
+          CHANGELOG="${{ steps.set_vars.outputs.changelog }}"
+          # 转义 changelog 中的特殊字符
+          ESCAPED_CHANGELOG=$(printf '%s\n' "$CHANGELOG" | sed 's/[&/\]/\\&/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+          sed -i "s/\${VERSION}/$MANIFEST_VERSION/g" "$MANIFEST_PATH"
+          sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
+          sed -i "s/\${PLATFORM}/${{ steps.arch.outputs.platform }}/g" "$MANIFEST_PATH"
+          echo "manifest 修改后的内容："
+          cat "$MANIFEST_PATH"
+
+      - name: 执行 fnpack 打包
+        run: |
+          cd build_workspace
+          ./fnpack build Filebrowser
+          FPK_FILE=$(ls *.fpk | head -n 1)
+          if [ -z "$FPK_FILE" ]; then
+            echo "错误：未找到生成的 fpk 文件"
+            exit 1
+          fi
+          FINAL_NAME="filebrowser-${{ steps.set_vars.outputs.manifest_version }}-${{ steps.arch.outputs.platform }}.fpk"
+          mv "$FPK_FILE" "$FINAL_NAME"
+          echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
+          echo "打包完成，生成文件：$FINAL_NAME"
+          ls -la *.fpk
+
+      - name: 上传 fpk 文件作为 Artifact（供发布任务使用）
+        uses: actions/upload-artifact@v4
+        with:
+          name: fpk-${{ matrix.os }}
+          path: build_workspace/*.fpk
+          if-no-files-found: error
