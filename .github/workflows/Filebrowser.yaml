@@ -189,3 +189,38 @@ jobs:
             echo "上传 $fpk"
             gh release upload "$TAG" "$fpk" --repo "$REPO" --clobber
           done
+
+      - name: 更新 fnpack.json 中的条目
+        env:
+          GH_TOKEN: ${{ secrets.BUILDBOT }}
+        run: |
+          REPO="shuangji66/Fndepot"
+          TAG="${{ steps.date_tag.outputs.tag }}"
+          APP_NAME="${{ needs.build.outputs.app_name }}"
+          MANIFEST_VERSION="${{ needs.build.outputs.manifest_version }}"
+          CHANGELOG="${{ needs.build.outputs.changelog }}"
+
+          DOWNLOAD_URL_X86="https://github.com/${REPO}/releases/download/${TAG}/${APP_NAME}-${MANIFEST_VERSION}-x86.fpk"
+          DOWNLOAD_URL_ARM="https://github.com/${REPO}/releases/download/${TAG}/${APP_NAME}-${MANIFEST_VERSION}-arm.fpk"
+
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" fndepot_repo
+          cd fndepot_repo
+
+          # 使用 app_name 变量动态定位 JSON 键名
+          jq --arg app "$APP_NAME" \
+             --arg version "$MANIFEST_VERSION" \
+             --arg changelog "$CHANGELOG" \
+             --arg url_x86 "$DOWNLOAD_URL_X86" \
+             --arg url_arm "$DOWNLOAD_URL_ARM" \
+             '.[$app].version = $version |
+              .[$app].changelog = $changelog |
+              .[$app].arch_diff.x86.download_url = $url_x86 |
+              .[$app].arch_diff.arm.download_url = $url_arm' \
+             fnpack.json > fnpack.json.tmp
+          mv fnpack.json.tmp fnpack.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add fnpack.json
+          git commit -m "chore: update ${APP_NAME} to ${MANIFEST_VERSION} (${TAG})"
+          git push
