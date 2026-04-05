@@ -24,7 +24,7 @@ on:
         description: '待上传的 fpk 文件所在的 artifact 名称模式'
         required: false
         type: string
-        default: '*.fpk'
+        default: 'fpk-*'
     secrets:
       BUILDBOT:
         description: 'GitHub Token，用于发布到 shuangji66/Fndepot'
