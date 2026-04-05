@@ -24,7 +24,7 @@ on:
         description: '待上传的 fpk 文件所在的 artifact 名称模式'
         required: false
         type: string
-        default: 'fpk-*'
+        default: '*.fpk'
     secrets:
       BUILDBOT:
         description: 'GitHub Token，用于发布到 shuangji66/Fndepot'
@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: 下载所有架构的 fpk 文件
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v6
         with:
           pattern: ${{ inputs.artifact_pattern }}
           path: fpk_files
