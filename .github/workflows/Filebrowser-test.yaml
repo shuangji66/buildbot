@@ -108,7 +108,7 @@ jobs:
     name: 发布到 Fndepot Release
     needs: build
     if: always() && needs.build.result == 'success'
-    uses: ./.github/workflows/publish.yml
+    uses: ./.github/workflows/publish.yaml
     with:
       app_name: ${{ needs.build.outputs.app_name }}
       manifest_version: ${{ needs.build.outputs.manifest_version }}
