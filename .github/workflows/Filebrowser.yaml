@@ -130,7 +130,7 @@ jobs:
       - name: 上传 fpk 文件作为 Artifact
         uses: actions/upload-artifact@v7
         with:
-          name: fpk-${{ steps.arch.outputs.platform }}
+          name: direct-file
           path: build_workspace/*.fpk
           archive: false
 
