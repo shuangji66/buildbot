@@ -64,7 +64,7 @@ jobs:
           ls -la extracted/app/
 
       - name: 检出本仓库 (shuangji66/buildbot)
-        uses: actions/checkout@v7
+        uses: actions/checkout@v6
         with:
           path: buildbot_repo
 
