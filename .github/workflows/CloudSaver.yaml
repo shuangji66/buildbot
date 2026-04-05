@@ -190,7 +190,7 @@ jobs:
         run: |
           TAG=$(date +'%Y.%-m.%-d')
           echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "RELEASE_TITLE=【$TAG 更新】CloudSaver" >> $GITHUB_OUTPUT
+          echo "RELEASE_TITLE=【$TAG 更新】" >> $GITHUB_OUTPUT
           echo "Tag: $TAG"
 
       - name: 使用 GitHub CLI 发布到 shuangji66/Fndepot
