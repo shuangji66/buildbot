@@ -1,0 +1,33 @@
+[
+  {
+    "stepTitle": "欢迎使用",
+    "items": [
+      {
+        "type": "text",
+        "field": "ui_port",
+        "label": "UI端口",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "initValue": "4533"
+      },
+      {
+        "type": "text",
+        "field": "music_dir",
+        "label": "音乐目录",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "initValue": "/var/apps/Navidrome/shares/music"
+      }
+    ]
+  }
+]

@@ -1,0 +1,22 @@
+{
+  "data-share": {
+    "shares": [
+      {
+        "name": "Navidrome",
+        "permission": {
+          "rw": [
+            "Navidrome"
+          ]
+        }
+      },
+      {
+        "name": "Navidrome/music",
+        "permission": {
+          "rw": [
+            "Navidrome"
+          ]
+        }
+      }
+    ]
+  }
+}
