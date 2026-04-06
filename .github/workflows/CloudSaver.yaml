@@ -15,6 +15,11 @@ on:
         description: 'manifest 中的更新日志（支持中文）'
         required: true
         type: string
+      publish:
+        description: '是否发布到 Fndepot Release'
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   build:
@@ -172,7 +177,7 @@ jobs:
     name: 发布到 Fndepot Release
     runs-on: ubuntu-24.04
     needs: build
-    if: always() && needs.build.result == 'success'
+    if: always() && needs.build.result == 'success' && github.event.inputs.publish == 'true'
     steps:
       - name: 下载所有架构的 fpk 文件
         uses: actions/download-artifact@v7
