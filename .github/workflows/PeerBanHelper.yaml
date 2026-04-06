@@ -1,0 +1,198 @@
+name: Build PeerBanHelper and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '上游软件版本号（例如 9.3.10，不带 v）'
+        required: true
+        type: string
+      manifest_version:
+        description: 'manifest 中的版本号（例如 9.3.10-1）'
+        required: true
+        type: string
+      changelog:
+        description: '更新日志（支持中文）'
+        required: true
+        type: string
+      publish:
+        description: '是否发布到 Fndepot Release'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    outputs:
+      app_name: ${{ steps.set_vars.outputs.app_name }}
+      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
+      upstream_version: ${{ steps.set_vars.outputs.upstream_version }}
+      changelog: ${{ steps.set_vars.outputs.changelog }}
+    steps:
+      - name: 设置项目变量
+        id: set_vars
+        run: |
+          APP_NAME="PeerBanHelper"
+          VERSION="${{ github.event.inputs.version }}"
+          MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          CHANGELOG="${{ github.event.inputs.changelog }}"
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "upstream_version=$VERSION" >> $GITHUB_OUTPUT
+          echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+
+      - name: 下载 PeerBanHelper 发行包
+        run: |
+          VERSION="${{ steps.set_vars.outputs.upstream_version }}"
+          DOWNLOAD_URL="https://github.com/PBH-BTN/PeerBanHelper/releases/download/v${VERSION}/PeerBanHelper_${VERSION}.zip"
+          wget "$DOWNLOAD_URL" -O PeerBanHelper.zip
+          unzip PeerBanHelper.zip -d extracted
+          echo "解压完成，目录结构："
+          ls -la extracted/
+
+      - name: 检出 buildbot 仓库
+        uses: actions/checkout@v6
+        with:
+          path: buildbot_repo
+
+      - name: 准备 fnpack 工具和模板
+        run: |
+          mkdir -p build_workspace
+          cp -r "buildbot_repo/fnpack/${{ steps.set_vars.outputs.app_name }}" build_workspace/
+          cp "buildbot_repo/fnpack/fnpack-1.2.1-linux-amd64" build_workspace/fnpack
+          chmod +x build_workspace/fnpack
+
+      # ========== 项目特有的复制步骤 ==========
+      - name: 将解压的 PeerBanHelper 复制到 app/jar_tmp 目录
+        run: |
+          APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app/jar_tmp"
+          mkdir -p "$APP_DIR"
+          cp -r extracted/* "$APP_DIR/"
+          # 删除 icon.ico 文件
+          rm -f "$APP_DIR/icon.ico"
+          echo "复制完成，app/jar_tmp 目录内容："
+          ls -la "$APP_DIR"
+          find "$APP_DIR" -name "*.jar" -ls
+      # =====================================
+
+      - name: 修改 manifest 文件
+        run: |
+          MANIFEST_PATH="build_workspace/${{ steps.set_vars.outputs.app_name }}/manifest"
+          if [ ! -f "$MANIFEST_PATH" ]; then
+            echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
+            exit 1
+          fi
+          MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
+          CHANGELOG="${{ steps.set_vars.outputs.changelog }}"
+          sudo apt-get update && sudo apt-get install -y jq
+          ESCAPED_CHANGELOG=$(printf '%s' "$CHANGELOG" | jq -sRr @json)
+          sed -i "s/\${VERSION}/$MANIFEST_VERSION/g" "$MANIFEST_PATH"
+          sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
+          echo "manifest 修改后的内容："
+          cat "$MANIFEST_PATH"
+
+      - name: 执行 fnpack 打包
+        run: |
+          cd build_workspace
+          ./fnpack build "${{ steps.set_vars.outputs.app_name }}"
+          FPK_FILE=$(ls *.fpk | head -n 1)
+          if [ -z "$FPK_FILE" ]; then
+            echo "错误：未找到生成的 fpk 文件"
+            exit 1
+          fi
+          FINAL_NAME="${{ steps.set_vars.outputs.app_name }}-${{ steps.set_vars.outputs.manifest_version }}-all.fpk"
+          mv "$FPK_FILE" "$FINAL_NAME"
+          echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
+          echo "打包完成，生成文件：$FINAL_NAME"
+          ls -la *.fpk
+
+      - name: 上传 fpk 文件作为 Artifact（供发布任务使用）
+        uses: actions/upload-artifact@v7
+        with:
+          name: fpk-all
+          path: build_workspace/*.fpk
+          if-no-files-found: error
+
+  publish:
+    name: 发布到 Fndepot Release
+    needs: build
+        if: always() && needs.build.result == 'success' && github.event.inputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: 下载 fpk 文件
+        uses: actions/download-artifact@v7
+        with:
+          path: fpk_files
+          merge-multiple: true
+
+      - name: 生成当前日期 tag（格式 年.月.日）
+        id: date_tag
+        run: |
+          TAG=$(date +'%Y.%-m.%-d')
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "RELEASE_TITLE=【$TAG 更新】" >> $GITHUB_OUTPUT
+          echo "Tag: $TAG"
+
+      - name: 使用 GitHub CLI 发布到 shuangji66/Fndepot
+        env:
+          GH_TOKEN: ${{ secrets.BUILDBOT }}
+        run: |
+          REPO="shuangji66/Fndepot"
+          TAG="${{ steps.date_tag.outputs.tag }}"
+          TITLE="${{ steps.date_tag.outputs.RELEASE_TITLE }}"
+          MANIFEST_VERSION="${{ needs.build.outputs.manifest_version }}"
+          UPSTREAM_VERSION="${{ needs.build.outputs.upstream_version }}"
+          CHANGELOG="${{ needs.build.outputs.changelog }}"
+
+          NEW_NOTE="构建 ${{ needs.build.outputs.app_name }} 版本 ${MANIFEST_VERSION}（基于上游 v${UPSTREAM_VERSION}）。更新日志：${CHANGELOG}"
+
+          if gh release view "$TAG" --repo "$REPO" &>/dev/null; then
+            echo "Release $TAG 已存在，将添加资产并追加描述"
+            CURRENT_BODY=$(gh release view "$TAG" --repo "$REPO" --json body -q .body)
+            if [ -n "$CURRENT_BODY" ]; then
+              NEW_BODY="${CURRENT_BODY}"$'\n'"$NEW_NOTE"
+            else
+              NEW_BODY="$NEW_NOTE"
+            fi
+            gh release edit "$TAG" --repo "$REPO" --notes "$NEW_BODY"
+          else
+            echo "Release $TAG 不存在，将创建新 Release"
+            gh release create "$TAG" --repo "$REPO" --title "$TITLE" --notes "$NEW_NOTE"
+          fi
+
+          for fpk in fpk_files/*.fpk; do
+            echo "上传 $fpk"
+            gh release upload "$TAG" "$fpk" --repo "$REPO" --clobber
+          done
+
+      - name: 更新 fnpack.json 中的 PeerBanHelper 条目
+        env:
+          GH_TOKEN: ${{ secrets.BUILDBOT }}
+        run: |
+          REPO="shuangji66/Fndepot"
+          TAG="${{ steps.date_tag.outputs.tag }}"
+          APP_NAME="${{ needs.build.outputs.app_name }}"
+          MANIFEST_VERSION="${{ needs.build.outputs.manifest_version }}"
+          CHANGELOG="${{ needs.build.outputs.changelog }}"
+
+          DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${TAG}/${APP_NAME}-${MANIFEST_VERSION}-all.fpk"
+
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" fndepot_repo
+          cd fndepot_repo
+
+          jq --arg app "$APP_NAME" \
+             --arg version "$MANIFEST_VERSION" \
+             --arg changelog "$CHANGELOG" \
+             --arg url "$DOWNLOAD_URL" \
+             '.[$app].version = $version |
+              .[$app].changelog = $changelog |
+              .[$app].download_url = $url' \
+             fnpack.json > fnpack.json.tmp
+          mv fnpack.json.tmp fnpack.json
+
+          git config user.name "github-actions[bot]"
+          git config.user.email "github-actions[bot]@users.noreply.github.com"
+          git add fnpack.json
+          git commit -m "chore: update ${APP_NAME} to ${MANIFEST_VERSION} (${TAG})"
+          git push
