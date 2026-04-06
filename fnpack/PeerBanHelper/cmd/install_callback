@@ -1,0 +1,10 @@
+#!/bin/bash
+APP_DIR="${TRIM_DATA_SHARE_PATHS%%:*}"
+
+#=== 释放jar ===
+rm -rf ${APP_DIR}/libraries
+cp -r ${TRIM_APPDEST}/jar_tmp/. ${APP_DIR}/
+rm -rf ${TRIM_APPDEST}/jar_tmp
+touch ${APP_DIR}/"不要删除这里的jar"
+
+exit 0
