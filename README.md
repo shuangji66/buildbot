@@ -6,3 +6,7 @@
 2.CloudSaver构建<br>
 3.Filebrowser构建<br>
 4.Tomato构建<br>
+5.Git构建<br>
+6.PeerBanHelper构建<br>
+7.Navidrome构建<br>
+8.DDNS-GO构建<br>
