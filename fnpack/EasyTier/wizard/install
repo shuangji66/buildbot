@@ -1,6 +1,6 @@
 [
   {
-    "stepTitle": "欢迎使用",
+    "stepTitle": "运行设置",
     "items": [
       {
         "type": "radio",
@@ -9,15 +9,19 @@
         "rules": [],
         "options": [
           {
-            "label": "配置文件",
+            "label": "配置文件-省内存",
             "value": "config"
           },
           {
-            "label": "web控制台",
+            "label": "web控制台-推荐",
             "value": "web"
+          },
+          {
+            "label": "rpc远程控制-实验性质",
+            "value": "rpc"
           }
         ],
-        "helpText": "配置文件模式节省内存，web控制台直观方便，推荐先在web控制台设置好后导出toml配置，再以配置模式运行",
+        "helpText": "推荐先在web控制台设置好后导出toml配置，再以配置模式运行",
         "initValue": "web"
       },
       {
@@ -49,7 +53,7 @@
       {
         "type": "text",
         "field": "config_name",
-        "label": "配置文件模式组网名",
+        "label": "default配置文件组网名",
         "rules": [
           {
             "required": true,
@@ -57,13 +61,13 @@
           }
         ],
         "options": [],
-        "helpText": "仅在初次安装生成默认配置文件，路径\"应用文件/EasyTier/config\"",
+        "helpText": "配置模式和rpc远程控制的default配置文件",
         "initValue": ""
       },
       {
         "type": "password",
         "field": "config_secret",
-        "label": "配置文件模式密钥",
+        "label": "default配置文件密钥",
         "rules": [
           {
             "required": true,
@@ -76,11 +80,150 @@
       {
         "type": "text",
         "field": "peer_url",
-        "label": "配置模式公共节点",
+        "label": "default配置文件初始节点",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "helpText": "公共节点经常失效，建议搭建私有节点",
+        "initValue": "tcp://et1.fuis.top:11010"
+      }
+    ]
+  },
+  {
+    "stepTitle": "通用设置",
+    "items": [
+      {
+        "type": "select",
+        "field": "log_level",
+        "label": "日志等级",
+        "rules": [],
+        "options": [
+          {
+            "label": "trace",
+            "value": "trace"
+          },
+          {
+            "label": "debug",
+            "value": "debug"
+          },
+          {
+            "label": "info",
+            "value": "info"
+          },
+          {
+            "label": "warn",
+            "value": "warn"
+          },
+          {
+            "label": "error",
+            "value": "error"
+          }
+        ],
+        "helpText": "默认info，等级越低，日志量越详细，trace等级最低",
+        "initValue": "info"
+      },
+      {
+        "type": "text",
+        "field": "log_size",
+        "label": "日志大小",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "helpText": "单位MB，建议不要设置太大",
+        "initValue": "1"
+      },
+      {
+        "type": "text",
+        "field": "log_count",
+        "label": "日志数量",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "helpText": "超过数量程序自动清理旧日志",
+        "initValue": "10"
+      },
+      {
+        "type": "radio",
+        "field": "rpc_mode",
+        "label": "RPC远程控制",
+        "rules": [],
+        "options": [
+          {
+            "label": "关",
+            "value": "off"
+          },
+          {
+            "label": "开",
+            "value": "on"
+          }
+        ],
+        "helpText": "此选项仅为配置模式RPC远程控制，不影响RPC远程模式",
+        "initValue": "off"
+      },
+      {
+        "type": "tips",
+        "field": "wizard_default",
+        "label": "示例项",
         "rules": [],
         "options": [],
-        "helpText": "官方节点经常炸，配置文件中已注释掉，建议自己修改节点或自定义配置文件",
-        "initValue": "tcp://public.easytier.top:11010"
+        "helpText": "以下为RPC远程控制通用设置"
+      },
+      {
+        "type": "text",
+        "field": "rpc_addr",
+        "label": "RPC监听地址",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "helpText": "\"0\"随机端口，首先尝试 15888；\"12345\"表示在localhost的12345上监听；\"0.0.0.0:12345\"表示在所有接口的12345上监听",
+        "initValue": "0.0.0.0:15888"
+      },
+      {
+        "type": "radio",
+        "field": "rpc_whitelist_mode",
+        "label": "RPC白名单开关",
+        "rules": [],
+        "options": [
+          {
+            "label": "关",
+            "value": "off"
+          },
+          {
+            "label": "开",
+            "value": "on"
+          }
+        ],
+        "initValue": "off"
+      },
+      {
+        "type": "text",
+        "field": "rpc_whitelist",
+        "label": "RPC控制白名单",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "helpText": "根据实际填写",
+        "initValue": "192.168.0.0/16,10.0.0.0/8,127.0.0.1/32,::1/128"
       }
     ]
   }
