@@ -1,7 +1,7 @@
 appname=EasyTier
 version=${VERSION}
 display_name=EasyTier
-desc="""<p>🌐EasyTier是一个简单、安全、去中心化的异地组网方案。支持自定义web控制台用户名，支持三模式启动、rpc远程控制。</p><p>⭐使用方法：</p><p>✅️web控制台模式（推荐）：API主机默认填"http://fn_ip:11211"或者反代后的地址。用自定义用户名进行注册，登陆后在设备列表添加一个新的网络。</p><p>✅️配置文件模式：在应用文件/EasyTier/config下修改或添加toml文件，重启生效，可开启rpc远程控制。</p><p>✅️rpc远程控制模式（实验性）：开启后可通过EasyTier-GUI进行远程控制、修改、监控</p><p>可在web控制台设置好后导出toml配置文件，再以配置模式运行。详情参考easytier官网使用说明。</p>"""
+desc="""<p>🌐EasyTier是一个简单、安全、去中心化的异地组网方案。支持自定义web控制台用户名，支持三模式启动、rpc远程控制。</p><p>⭐使用方法：</p><p>✅️web控制台模式（推荐）：API主机默认填"http://fn_ip:11211"或者反代后的地址。用自定义用户名进行注册，登陆后在设备列表添加一个新的网络。</p><p>✅️配置文件模式：在应用文件/EasyTier/config下修改或添加toml文件，重启生效，可开启rpc远程控制。</p><p>✅️rpc远程控制模式（实验性）：开启后可通过EasyTier-GUI进行远程控制、修改、监控。</p><p>可在web控制台设置好后导出toml配置文件，再以配置模式运行。详情参考easytier官网使用说明。</p>"""
 platform=${PLATFORM}
 source=thirdparty
 maintainer=EasyTier
