@@ -1,116 +1,57 @@
 #!/bin/bash
 LOG_FILE="${TRIM_DATA_SHARE_PATHS%%:*}/info.log"
 PID_FILE="${TRIM_PKGVAR}/app.pid"
-LOG_CHECK_MARKER="${TRIM_PKGVAR}/.log_check_marker"
-LOG_MAX_SIZE=1048576  # 1MB = 1 * 1024 * 1024 bytes
-LOG_CHECK_INTERVAL=3  # 检查间隔(天)
+CONFIG_DIR="${TRIM_DATA_SHARE_PATHS%%:*}/config"
 
-# 检查并清理日志文件大小（每3天检查一次）
-check_log_size() {
-    local should_check=false
-    
-    # 检查标记文件是否存在
-    if [ ! -f "${LOG_CHECK_MARKER}" ]; then
-        should_check=true
-    else
-        # 读取上次检查时间
-        local last_check=$(cat "${LOG_CHECK_MARKER}" 2>/dev/null | tr -d '[:space:]')
-        if [ -n "$last_check" ]; then
-            # 计算天数差
-            local current_time=$(date +%s)
-            local days_diff=$(( (current_time - last_check) / 86400 ))
-            if [ "$days_diff" -ge "$LOG_CHECK_INTERVAL" ]; then
-                should_check=true
-            fi
-        else
-            should_check=true
-        fi
-    fi
-    
-    if [ "$should_check" = true ]; then
-        if [ -f "${LOG_FILE}" ]; then
-            local file_size=$(stat -c%s "${LOG_FILE}" 2>/dev/null || stat -f%z "${LOG_FILE}" 2>/dev/null)
-            if [ "${file_size}" -gt "${LOG_MAX_SIZE}" ]; then
-                echo "$(date '+%Y-%m-%d %H:%M:%S') - Log file exceeded 10MB, clearing content" > "${LOG_FILE}"
-            fi
-        fi
-        # 更新检查时间标记
-        echo "$(date +%s)" > "${LOG_CHECK_MARKER}"
-    fi
-}
+CONFIG_TEMPLATE="${TRIM_APPDEST}/template/default.tpl"
+CONFIG_FILE="${TRIM_DATA_SHARE_PATHS%%:*}/config/default.toml"
+
+LOG_OPT="--file-log-dir ${TRIM_DATA_SHARE_PATHS%%:*}"
+LOG_OPT="${LOG_OPT} --file-log-level $log_level"
+LOG_OPT="${LOG_OPT} --file-log-size $log_size"
+LOG_OPT="${LOG_OPT} --file-log-count $log_count"
+RPC_OPT="--rpc-portal $rpc_addr"
+if [ "$rpc_whitelist_mode" = "on" ]; then
+    RPC_OPT="${RPC_OPT} --rpc-portal-whitelist $rpc_whitelist"
+fi
+
+
 
 log_msg() {
-    # 先检查日志文件大小
-    check_log_size
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
-}
-
-kill_by_process_name() {
-    local process_name=$1
-    log_msg "Looking for process: $process_name"
-    
-    # 查找所有匹配的进程ID
-    pids=$(pgrep -f "$process_name" 2>/dev/null)
-    
-    if [ -n "$pids" ]; then
-        log_msg "Found $process_name processes: $pids"
-        for pid in $pids; do
-            if check_process "$pid"; then
-                log_msg "Sending TERM signal to $process_name (PID: $pid)"
-                kill -TERM "$pid" >> ${LOG_FILE} 2>&1
-            fi
-        done
-        
-        # 等待进程结束
-        local count=0
-        while [ $count -lt 5 ]; do
-            remaining_pids=$(pgrep -f "$process_name" 2>/dev/null)
-            if [ -z "$remaining_pids" ]; then
-                break
-            fi
-            sleep 1
-            count=$((count + 1))
-            log_msg "Waiting for $process_name to terminate... (${count}s/5s)"
-        done
-        
-        # 如果还有进程存活，强制杀死
-        remaining_pids=$(pgrep -f "$process_name" 2>/dev/null)
-        if [ -n "$remaining_pids" ]; then
-            log_msg "Sending KILL signal to remaining $process_name processes: $remaining_pids"
-            kill -KILL $remaining_pids 2>/dev/null
-        fi
-    else
-        log_msg "No $process_name processes found"
-    fi
 }
 
 stop_process() {
     log_msg "Stopping process ..."
-    # 首先，杀死所有已知的 easytier 进程，无论其来源
-    kill_by_process_name "easytier-web-em"
-    kill_by_process_name "easytier-core"
 
-    if [ -r "${PID_FILE}" ]; then
-        pid=$(head -n 1 "${PID_FILE}" | tr -d '[:space:]')
-        log_msg "Found PID in file, checking process ${pid}..."
-        if check_process "${pid}"; then
-            log_msg "Sending TERM signal to PID from file: ${pid}..."
-            kill -TERM ${pid} 2>&1
-            local count=0
-            while check_process "${pid}" && [ $count -lt 10 ]; do
-                sleep 1
-                count=$((count + 1))
-                log_msg "Waiting for PID ${pid} to terminate... (${count}s/10s)"
+    for process_name in easytier-web-em easytier-core; do
+        log_msg "Looking for process: $process_name"
+        pids=$(pgrep -f "$process_name" 2>/dev/null)
+        if [ -n "$pids" ]; then
+            log_msg "Found $process_name processes: $pids"
+            for pid in $pids; do
+                if check_process "$pid"; then
+                    log_msg "Sending TERM signal to $process_name (PID: $pid)"
+                    kill -TERM "$pid" 2>&1
+                fi
             done
-            if check_process "${pid}"; then
-                log_msg "Sending KILL signal to PID from file: ${pid}..."
-                kill -KILL "${pid}"
+            for ((i=1; i<=5; i++)); do
+                remaining_pids=$(pgrep -f "$process_name" 2>/dev/null)
+                [ -z "$remaining_pids" ] && break
+                sleep 1
+                log_msg "Waiting for $process_name to terminate... (${i}s/5s)"
+            done
+            remaining_pids=$(pgrep -f "$process_name" 2>/dev/null)
+            if [ -n "$remaining_pids" ]; then
+                log_msg "Sending KILL signal to remaining $process_name processes: $remaining_pids"
+                kill -KILL $remaining_pids 2>/dev/null
             fi
+        else
+            log_msg "No $process_name processes found"
         fi
-        rm -f "${PID_FILE}" # 无论进程是否存在，都删除过时的PID文件
-        log_msg "Removed PID file."
-    fi
+    done
 
+    rm -f "$PID_FILE"
     log_msg "Stop command completed."
     return 0
 }
@@ -119,39 +60,43 @@ start_process() {
     log_msg "Start process initiated. Ensuring old processes are stopped first..."
     stop_process
 
-    CONFIG_DIR="${TRIM_DATA_SHARE_PATHS%%:*}/config"
-    UI_USERNAME="$ui_username"
-    UI_PORT="$ui_port"
-    EASYTIER_MODE="$easytier_mode"
-
-    local web_pid core_pid
-    web_pid=""
-    core_pid=""
-
-    if [ "$EASYTIER_MODE" = "config" ]; then
-        log_msg "Starting in config mode..."
-        CMD="${TRIM_APPDEST}/server/easytier-core --config-dir ${CONFIG_DIR}"
-        bash -c "${CMD}" >> ${LOG_FILE} 2>&1 &
+    local core_pid
+    if [ "$easytier_mode" = "config" ]; then
+        if [ -z "$(find "$CONFIG_DIR" -maxdepth 1 -name '*.toml' -print -quit)" ]; then
+            echo "错误：应用文件/EasyTier/config目录未找到toml文件" > ${TRIM_TEMP_LOGFILE}
+            exit 1
+        fi
+        log_msg "配置文件模式启动..."
+        if [ "$rpc_mode" = "off" ]; then
+            "${TRIM_APPDEST}/server/easytier-core" --config-dir "$CONFIG_DIR" $LOG_OPT 2>&1 &
+        else
+            "${TRIM_APPDEST}/server/easytier-core" --config-dir "$CONFIG_DIR" $RPC_OPT $LOG_OPT 2>&1 &
+            log_msg "RPC控制已启动..."
+        fi
         core_pid=$!
-        printf "%s" "$core_pid" > ${PID_FILE}
-        log_msg "Started config mode. Core PID: $core_pid, written to ${PID_FILE}"
+    elif [ "$easytier_mode" = "web" ]; then
+        log_msg "web控制台模式启动..."
+        "${TRIM_APPDEST}/server/easytier-web-embed" -a "$ui_port" -d "${TRIM_PKGHOME}/et.db" 2>&1 &
+        "${TRIM_APPDEST}/server/easytier-core" -w "udp://127.0.0.1:22020/$ui_username" $LOG_OPT 2>&1 &
+        core_pid=$!
     else
-        log_msg "Starting in web mode..."
-        # 启动 web-embed
-        ${TRIM_APPDEST}/server/easytier-web-embed -a ${UI_PORT} -d ${TRIM_PKGHOME}/et.db >> ${LOG_FILE} 2>&1 &
-        web_pid=$!
-        log_msg "Started easytier-web-embed. PID: $web_pid"
-
-        # 启动 core
-        ${TRIM_APPDEST}/server/easytier-core -w udp://127.0.0.1:22020/$UI_USERNAME >> ${LOG_FILE} 2>&1 &
+        if [ ! -f "$CONFIG_FILE" ]; then
+            UUID=$(cat /proc/sys/kernel/random/uuid)
+            sed \
+              -e "s|\${CONFIG_NAME}|$config_name|g" \
+              -e "s|\${CONFIG_SECRET}|$config_secret|g" \
+              -e "s|\${PEER_URL}|$peer_url|g" \
+              -e "s|\${UUID_ID}|$UUID|g" \
+              "${CONFIG_TEMPLATE}" > "$CONFIG_FILE" 2>/dev/null
+            log_msg "default配置文件不存在，已重新生成"
+        fi
+        log_msg "rpc远程控制模式启动..."
+        "${TRIM_APPDEST}/server/easytier-core" --config-dir "$CONFIG_DIR" $RPC_OPT $LOG_OPT 2>&1 &
         core_pid=$!
-        log_msg "Started easytier-core for web mode. PID: $core_pid"
-
-        printf "%s" "$core_pid" > ${PID_FILE}
-        log_msg "Started web mode. Core PID: $core_pid, written to ${PID_FILE}"
     fi
 
-    log_msg "Process start sequence completed."
+    printf "%s" "$core_pid" > "$PID_FILE"
+    log_msg "$easytier_mode模式启动完成..."
     return 0
 }
 
