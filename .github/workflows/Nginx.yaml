@@ -1,0 +1,296 @@
+name: Build Nginx and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      main_version:
+        description: '主线 Nginx 版本（例如 1.29.8）'
+        required: true
+        type: string
+      stable_version:
+        description: '稳定 Nginx 版本（例如 1.28.3）'
+        required: true
+        type: string
+      manifest_version:
+        description: 'manifest 中的版本号（例如 1.1.2）'
+        required: true
+        type: string
+      changelog:
+        description: '更新日志（支持中文）'
+        required: true
+        type: string
+      publish:
+        description: '是否发布到 Fndepot Release'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: x86
+            ui_arch: amd64
+            ui_url_suffix: linux-64
+          - os: ubuntu-24.04-arm
+            platform: arm
+            ui_arch: arm64
+            ui_url_suffix: linux-arm64-v8a
+    runs-on: ${{ matrix.os }}
+    outputs:
+      app_name: ${{ steps.set_vars.outputs.app_name }}
+      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
+      changelog: ${{ steps.set_vars.outputs.changelog }}
+    steps:
+      - name: 设置项目变量
+        id: set_vars
+        run: |
+          APP_NAME="Nginx"
+          MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          CHANGELOG="${{ github.event.inputs.changelog }}"
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+
+      - name: 获取最新 nginx-ui 版本
+        id: get_ui_version
+        run: |
+          UI_VERSION=$(curl -s https://api.github.com/repos/0xJacky/nginx-ui/releases/latest | jq -r '.tag_name' | sed 's/^v//')
+          echo "ui_version=$UI_VERSION" >> $GITHUB_OUTPUT
+          echo "nginx-ui 版本: $UI_VERSION"
+
+      - name: 安装编译依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc make libpcre3-dev zlib1g-dev libssl-dev libgd-dev libgeoip-dev \
+            libxml2-dev libxslt1-dev libperl-dev libbz2-dev libexpat1-dev \
+            libncurses5-dev libreadline-dev libtinfo-dev wget curl jq
+
+      - name: 下载并编译主线 Nginx ${{ github.event.inputs.main_version }}
+        run: |
+          VERSION="${{ github.event.inputs.main_version }}"
+          wget "https://github.com/nginx/nginx/archive/release-${VERSION}.tar.gz" -O nginx-main.tar.gz
+          mkdir nginx-main-src
+          tar -xzf nginx-main.tar.gz -C nginx-main-src --strip-components=1
+          cd nginx-main-src
+          ./auto/configure \
+            --prefix=/var/apps/Nginx/var \
+            --sbin-path=/var/apps/Nginx/target/Nginx \
+            --modules-path=/var/apps/Nginx/shares/etc/modules \
+            --conf-path=/var/apps/Nginx/shares/etc/nginx.conf \
+            --pid-path=/var/apps/Nginx/var/nginx.pid \
+            --lock-path=/var/apps/Nginx/var/nginx.lock \
+            --http-client-body-temp-path=/var/apps/Nginx/var/cache/client_temp \
+            --http-proxy-temp-path=/var/apps/Nginx/var/cache/proxy_temp \
+            --http-fastcgi-temp-path=/var/apps/Nginx/var/cache/fastcgi_temp \
+            --http-uwsgi-temp-path=/var/apps/Nginx/var/cache/uwsgi_temp \
+            --http-scgi-temp-path=/var/apps/Nginx/var/cache/scgi_temp \
+            --with-http_ssl_module --with-http_v2_module --with-http_v3_module \
+            --with-http_realip_module --with-http_image_filter_module \
+            --with-http_sub_module --with-http_dav_module --with-http_mp4_module \
+            --with-http_gunzip_module --with-http_gzip_static_module \
+            --with-http_auth_request_module --with-http_random_index_module \
+            --with-http_secure_link_module --with-http_slice_module \
+            --with-http_stub_status_module --with-threads --with-file-aio \
+            --with-pcre-jit --with-stream --with-stream_ssl_module --with-mail \
+            --with-mail_ssl_module
+          make -j$(nproc)
+          cp objs/nginx ../nginx-main
+
+      - name: 下载并编译稳定 Nginx ${{ github.event.inputs.stable_version }}
+        run: |
+          VERSION="${{ github.event.inputs.stable_version }}"
+          wget "https://github.com/nginx/nginx/archive/release-${VERSION}.tar.gz" -O nginx-stable.tar.gz
+          mkdir nginx-stable-src
+          tar -xzf nginx-stable.tar.gz -C nginx-stable-src --strip-components=1
+          cd nginx-stable-src
+          ./auto/configure \
+            --prefix=/var/apps/Nginx/var \
+            --sbin-path=/var/apps/Nginx/target/Nginx \
+            --modules-path=/var/apps/Nginx/shares/etc/modules \
+            --conf-path=/var/apps/Nginx/shares/etc/nginx.conf \
+            --pid-path=/var/apps/Nginx/var/nginx.pid \
+            --lock-path=/var/apps/Nginx/var/nginx.lock \
+            --http-client-body-temp-path=/var/apps/Nginx/var/cache/client_temp \
+            --http-proxy-temp-path=/var/apps/Nginx/var/cache/proxy_temp \
+            --http-fastcgi-temp-path=/var/apps/Nginx/var/cache/fastcgi_temp \
+            --http-uwsgi-temp-path=/var/apps/Nginx/var/cache/uwsgi_temp \
+            --http-scgi-temp-path=/var/apps/Nginx/var/cache/scgi_temp \
+            --with-http_ssl_module --with-http_v2_module --with-http_v3_module \
+            --with-http_realip_module --with-http_image_filter_module \
+            --with-http_sub_module --with-http_dav_module --with-http_mp4_module \
+            --with-http_gunzip_module --with-http_gzip_static_module \
+            --with-http_auth_request_module --with-http_random_index_module \
+            --with-http_secure_link_module --with-http_slice_module \
+            --with-http_stub_status_module --with-threads --with-file-aio \
+            --with-pcre-jit --with-stream --with-stream_ssl_module --with-mail \
+            --with-mail_ssl_module
+          make -j$(nproc)
+          cp objs/nginx ../nginx-stable
+
+      - name: 下载最新 nginx-ui (${{ matrix.platform }})
+        run: |
+          UI_VERSION="${{ steps.get_ui_version.outputs.ui_version }}"
+          UI_URL="https://github.com/0xJacky/nginx-ui/releases/download/v${UI_VERSION}/nginx-ui-${UI_VERSION}-${{ matrix.ui_url_suffix }}.tar.gz"
+          wget "$UI_URL" -O nginx-ui.tar.gz
+          tar -xzf nginx-ui.tar.gz
+          chmod +x nginx-ui
+          ls -la nginx-ui
+
+      - name: 检出 buildbot 仓库
+        uses: actions/checkout@v6
+        with:
+          path: buildbot_repo
+
+      - name: 准备 fnpack 工具和模板
+        run: |
+          mkdir -p build_workspace
+          cp -r "buildbot_repo/fnpack/${{ steps.set_vars.outputs.app_name }}" build_workspace/
+          if [ "${{ matrix.os }}" = "ubuntu-24.04" ]; then
+            FNPACK_BIN="fnpack-1.2.1-linux-amd64"
+          else
+            FNPACK_BIN="fnpack-1.2.1-linux-arm64"
+          fi
+          cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
+          chmod +x build_workspace/fnpack
+
+      - name: 复制二进制到 app/server 目录
+        run: |
+          APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app"
+          mkdir -p "$APP_DIR/server/main" "$APP_DIR/server/stable"
+          cp nginx-main "$APP_DIR/server/main/"
+          cp nginx-stable "$APP_DIR/server/stable/"
+          cp nginx-ui "$APP_DIR/server/"
+          echo "复制完成，app/server 目录结构："
+          ls -la "$APP_DIR/server"
+          ls -la "$APP_DIR/server/main"
+          ls -la "$APP_DIR/server/stable"
+
+      - name: 修改 manifest 文件
+        run: |
+          MANIFEST_PATH="build_workspace/${{ steps.set_vars.outputs.app_name }}/manifest"
+          if [ ! -f "$MANIFEST_PATH" ]; then
+            echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
+            exit 1
+          fi
+          MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
+          CHANGELOG="${{ steps.set_vars.outputs.changelog }}"
+          sudo apt-get update && sudo apt-get install -y jq
+          ESCAPED_CHANGELOG=$(printf '%s' "$CHANGELOG" | jq -sRr @json)
+          sed -i "s/\${VERSION}/$MANIFEST_VERSION/g" "$MANIFEST_PATH"
+          sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
+          sed -i "s/\${PLATFORM}/${{ matrix.platform }}/g" "$MANIFEST_PATH"
+          # 如果 manifest 模板中还包含 Nginx 版本占位符，可以保留替换，但用户已要求 release 日志不写版本，manifest 内部是否需要由模板决定，此处保留替换但不强制
+          sed -i "s/\${NGINX_MAIN_VERSION}/${{ github.event.inputs.main_version }}/g" "$MANIFEST_PATH" || true
+          sed -i "s/\${NGINX_STABLE_VERSION}/${{ github.event.inputs.stable_version }}/g" "$MANIFEST_PATH" || true
+          sed -i "s/\${NGINX_UI_VERSION}/${{ steps.get_ui_version.outputs.ui_version }}/g" "$MANIFEST_PATH" || true
+          echo "manifest 修改后的内容："
+          cat "$MANIFEST_PATH"
+
+      - name: 执行 fnpack 打包
+        run: |
+          cd build_workspace
+          ./fnpack build "${{ steps.set_vars.outputs.app_name }}"
+          FPK_FILE=$(ls *.fpk | head -n 1)
+          if [ -z "$FPK_FILE" ]; then
+            echo "错误：未找到生成的 fpk 文件"
+            exit 1
+          fi
+          FINAL_NAME="${{ steps.set_vars.outputs.app_name }}-${{ steps.set_vars.outputs.manifest_version }}-${{ matrix.platform }}.fpk"
+          mv "$FPK_FILE" "$FINAL_NAME"
+          echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
+          echo "打包完成，生成文件：$FINAL_NAME"
+          ls -la *.fpk
+
+      - name: 上传 fpk 文件作为 Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: fpk-${{ matrix.platform }}
+          path: build_workspace/*.fpk
+          if-no-files-found: error
+
+  publish:
+    name: 发布到 Fndepot Release
+    needs: build
+    if: always() && needs.build.result == 'success' && github.event.inputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: 下载所有架构的 fpk 文件
+        uses: actions/download-artifact@v7
+        with:
+          path: fpk_files
+          merge-multiple: true
+
+      - name: 生成当前日期 tag
+        id: date_tag
+        run: |
+          TAG=$(date +'%Y.%-m.%-d')
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "RELEASE_TITLE=【$TAG 更新】" >> $GITHUB_OUTPUT
+
+      - name: 使用 GitHub CLI 发布到 shuangji66/Fndepot
+        env:
+          GH_TOKEN: ${{ secrets.BUILDBOT }}
+        run: |
+          REPO="shuangji66/Fndepot"
+          TAG="${{ steps.date_tag.outputs.tag }}"
+          TITLE="${{ steps.date_tag.outputs.RELEASE_TITLE }}"
+          MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          CHANGELOG="${{ github.event.inputs.changelog }}"
+          # 不再包含具体版本号
+          NEW_NOTE="构建 Nginx 版本 ${MANIFEST_VERSION}。更新日志：${CHANGELOG}"
+
+          if gh release view "$TAG" --repo "$REPO" &>/dev/null; then
+            echo "Release $TAG 已存在，将添加资产并追加描述"
+            CURRENT_BODY=$(gh release view "$TAG" --repo "$REPO" --json body -q .body)
+            if [ -n "$CURRENT_BODY" ]; then
+              NEW_BODY="${CURRENT_BODY}"$'\n'"$NEW_NOTE"
+            else
+              NEW_BODY="$NEW_NOTE"
+            fi
+            gh release edit "$TAG" --repo "$REPO" --notes "$NEW_BODY"
+          else
+            gh release create "$TAG" --repo "$REPO" --title "$TITLE" --notes "$NEW_NOTE"
+          fi
+
+          for fpk in fpk_files/*.fpk; do
+            echo "上传 $fpk"
+            gh release upload "$TAG" "$fpk" --repo "$REPO" --clobber
+          done
+
+      - name: 更新 fnpack.json 中的 Nginx 条目
+        env:
+          GH_TOKEN: ${{ secrets.BUILDBOT }}
+        run: |
+          REPO="shuangji66/Fndepot"
+          TAG="${{ steps.date_tag.outputs.tag }}"
+          APP_NAME="Nginx"
+          MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          CHANGELOG="${{ github.event.inputs.changelog }}"
+
+          DOWNLOAD_URL_X86="https://github.com/${REPO}/releases/download/${TAG}/${APP_NAME}-${MANIFEST_VERSION}-x86.fpk"
+          DOWNLOAD_URL_ARM="https://github.com/${REPO}/releases/download/${TAG}/${APP_NAME}-${MANIFEST_VERSION}-arm.fpk"
+
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" fndepot_repo
+          cd fndepot_repo
+
+          jq --arg app "$APP_NAME" \
+             --arg version "$MANIFEST_VERSION" \
+             --arg changelog "$CHANGELOG" \
+             --arg url_x86 "$DOWNLOAD_URL_X86" \
+             --arg url_arm "$DOWNLOAD_URL_ARM" \
+             '.[$app].version = $version |
+              .[$app].changelog = $changelog |
+              .[$app].arch_diff.x86.download_url = $url_x86 |
+              .[$app].arch_diff.arm.download_url = $url_arm' \
+             fnpack.json > fnpack.json.tmp
+          mv fnpack.json.tmp fnpack.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add fnpack.json
+          git commit -m "chore: update ${APP_NAME} to ${MANIFEST_VERSION} (${TAG})"
+          git push
