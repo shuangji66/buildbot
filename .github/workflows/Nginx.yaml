@@ -134,7 +134,7 @@ jobs:
       - name: 下载最新 nginx-ui (${{ matrix.platform }})
         run: |
           UI_VERSION="${{ steps.get_ui_version.outputs.ui_version }}"
-          UI_URL="https://github.com/0xJacky/nginx-ui/releases/download/v${UI_VERSION}/nginx-ui-${UI_VERSION}-${{ matrix.ui_url_suffix }}.tar.gz"
+          UI_URL="https://github.com/0xJacky/nginx-ui/releases/download/v${UI_VERSION}/nginx-ui-${{ matrix.ui_url_suffix }}.tar.gz"
           wget "$UI_URL" -O nginx-ui.tar.gz
           tar -xzf nginx-ui.tar.gz
           chmod +x nginx-ui
