@@ -76,7 +76,7 @@ jobs:
       # ========== 项目特有的复制步骤 ==========
       - name: 将解压的 Read 文件复制到 app/jar_tmp 目录（仅 libs 和 read.jar）
         run: |
-          APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app/jar_tmp"
+          APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app/app_tmp"
           mkdir -p "$APP_DIR"
           # 查找解压后的根目录（可能有一层子目录）
           if [ $(ls -1 extracted | wc -l) -eq 1 ] && [ -d "extracted/$(ls extracted)" ]; then
@@ -97,7 +97,7 @@ jobs:
             echo "错误：未找到 read.jar 文件"
             exit 1
           fi
-          echo "复制完成，app/jar_tmp 目录内容："
+          echo "复制完成，app/app_tmp 目录内容："
           ls -la "$APP_DIR"
       # =====================================
 
