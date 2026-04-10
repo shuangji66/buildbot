@@ -11,4 +11,6 @@
 7.Navidrome构建<br>
 8.DDNS-GO构建<br>
 9.Easytier构建<br>
+10.Read构建<br>
+11.Nginx构建<br>
 
