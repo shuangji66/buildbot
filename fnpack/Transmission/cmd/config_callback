@@ -1,0 +1,16 @@
+#!/bin/bash
+LOG_FILE="${TRIM_DATA_SHARE_PATHS%%:*}/data/info.log"
+CONFIG_TEMPLATE="${TRIM_APPDEST}/template/settings.tpl"
+CONFIG_FILE="${TRIM_DATA_SHARE_PATHS%%:*}/data/settings.json"
+
+if [ -f "$CONFIG_FILE" ]; then
+    rm -f "$CONFIG_FILE"
+fi
+sed \
+  -e "s|\${USER_NAME}|$user_name|g" \
+  -e "s|\${USER_PASSWORD}|$user_password|g" \
+  -e "s|\${RPC_PORT}|$rpc_port|g" \
+  "$CONFIG_TEMPLATE" > "$CONFIG_FILE"
+echo "基础配置已重置" >> ${LOG_FILE}
+
+exit 0

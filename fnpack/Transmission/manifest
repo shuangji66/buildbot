@@ -1,0 +1,16 @@
+appname=Transmission
+version=${VERSION}
+display_name=Transmission
+desc="""<p>🧲Transmission是一款简单快速的BitTorrent客户端。内置TrguiNG第三方汉化webui，支持监听种子目录"应用文件/Transmission/Download/watch"。</p>"""
+platform=${PLATFORM}
+source=thirdparty
+maintainer=Transmission
+maintainer_url=https://github.com/transmission/transmission
+distributor=shuangji66
+distributor_url=https://github.com/shuangji66/FnDepot
+ctl_stop=true
+desktop_uidir=ui
+desktop_applaunchname=Transmission.Application
+checkport=false
+disable_authorization_path=false
+changelog=${CHANGELOG}

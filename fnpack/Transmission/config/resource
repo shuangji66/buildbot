@@ -1,0 +1,38 @@
+{
+  "data-share": {
+    "shares": [
+      {
+        "name": "Transmission",
+        "permission": {
+          "rw": [
+            "Transmission"
+          ]
+        }
+      },
+      {
+        "name": "Transmission/data",
+        "permission": {
+          "rw": [
+            "Transmission"
+          ]
+        }
+      },
+      {
+        "name": "Transmission/Download",
+        "permission": {
+          "rw": [
+            "Transmission"
+          ]
+        }
+      },
+      {
+        "name": "Transmission/Download/watch",
+        "permission": {
+          "rw": [
+            "Transmission"
+          ]
+        }
+      }
+    ]
+  }
+}
