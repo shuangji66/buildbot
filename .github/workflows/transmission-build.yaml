@@ -1,0 +1,63 @@
+name: Build Transmission
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            build-essential \
+            cmake \
+            libssl-dev \
+            pkg-config \
+            libcurl4-openssl-dev \
+            zlib1g-dev \
+            gettext
+
+      - name: Download source
+        run: wget https://github.com/transmission/transmission/releases/download/4.1.1/transmission-4.1.1.tar.xz
+
+      - name: Extract source
+        run: tar xf transmission-4.1.1.tar.xz
+
+      - name: Configure CMake
+        working-directory: transmission-4.1.1
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/var/apps/Transmission/target \
+            -DENABLE_GTK=OFF \
+            -DENABLE_QT=OFF \
+            -DENABLE_MAC=OFF \
+            -DWITH_CRYPTO=openssl \
+            -DUSE_SYSTEM_EVENT2=OFF \
+            -DUSE_SYSTEM_DEFLATE=OFF \
+            -DUSE_SYSTEM_DHT=OFF \
+            -DUSE_SYSTEM_MINIUPNPC=OFF \
+            -DUSE_SYSTEM_NATPMP=OFF \
+            -DUSE_SYSTEM_UTP=OFF \
+            -DUSE_SYSTEM_B64=OFF \
+            -DUSE_SYSTEM_PSL=OFF
+
+      - name: Build
+        working-directory: transmission-4.1.1
+        run: cmake --build build --parallel $(nproc)
+
+      - name: Install
+        working-directory: transmission-4.1.1
+        run: cmake --install build
+
+      - name: Upload bin artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: transmission-bin-${{ matrix.os }}
+          path: /var/apps/Transmission/target/bin
