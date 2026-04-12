@@ -16,25 +16,25 @@ jobs:
     steps:
       - name: Install build dependencies
         run: |
-          apk update && apk add --no-cache \
-            build-base \
-            cmake \
-            pkgconfig \
-            linux-headers \
-            openssl-static \
-            openssl-dev \
-            curl-static \
-            curl-dev \
-            libevent-static \
-            libevent-dev \
-            brotli-static \
-            brotli-dev \
-            nghttp2-static \
-            nghttp2-dev \
-            zlib-static \
-            zlib-dev \
-            gettext-dev \
-            xz
+            apk update && apk add --no-cache \
+              build-base \
+              cmake \
+              pkgconfig \
+              linux-headers \
+              openssl-dev \
+              openssl-libs-static \
+              curl-dev \
+              curl-static \
+              libevent-dev \
+              libevent-static \
+              brotli-dev \
+              brotli-static \
+              nghttp2-dev \
+              nghttp2-static \
+              zlib-dev \
+              zlib-static \
+              gettext-dev \
+              xz
 
       - name: Download source
         run: |
