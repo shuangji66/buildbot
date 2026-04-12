@@ -53,7 +53,7 @@ jobs:
         run: cmake --build build --parallel $(nproc)
 
       - name: Upload binaries
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: transmission-bin-${{ matrix.os }}
           path: |
