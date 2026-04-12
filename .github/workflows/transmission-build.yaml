@@ -1,4 +1,4 @@
-name: Build Transmission (musl static)
+name: Build Transmission-debian12
 
 on:
   workflow_dispatch:
@@ -7,34 +7,26 @@ jobs:
   build:
     strategy:
       matrix:
-        # Alpine 容器原生支持 amd64 / arm64
         arch: [ubuntu-24.04, ubuntu-24.04-arm]
-        # 注意：runner 名称仅用于调度，实际构建环境由 container 决定
     runs-on: ${{ matrix.arch }}
     container:
-      image: alpine:latest
+      image: debian:bookworm
     steps:
       - name: Install build dependencies
         run: |
-            apk update && apk add --no-cache \
-              build-base \
-              cmake \
-              pkgconfig \
-              linux-headers \
-              openssl-dev \
-              openssl-libs-static \
-              curl-dev \
-              curl-static \
-              libevent-dev \
-              libevent-static \
-              brotli-dev \
-              brotli-static \
-              nghttp2-dev \
-              nghttp2-static \
-              zlib-dev \
-              zlib-static \
-              gettext-dev \
-              xz
+          apt update && apt install -y \
+            build-essential \
+            cmake \
+            pkg-config \
+            libssl-dev \
+            libcurl4-openssl-dev \
+            libevent-dev \
+            libbrotli-dev \
+            libnghttp2-dev \
+            zlib1g-dev \
+            gettext \
+            xz-utils \
+            wget
 
       - name: Download source
         run: |
@@ -42,15 +34,12 @@ jobs:
           tar xf transmission-4.1.1.tar.xz
           cd transmission-4.1.1
 
-      - name: Configure CMake (musl static)
+      - name: Configure CMake
         working-directory: transmission-4.1.1
         run: |
           cmake -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr/local \
-            -DCMAKE_EXE_LINKER_FLAGS="-static" \
-            -DCMAKE_C_FLAGS="-static" \
-            -DCMAKE_CXX_FLAGS="-static" \
             -DENABLE_GTK=OFF \
             -DENABLE_QT=OFF \
             -DENABLE_MAC=OFF \
@@ -58,6 +47,7 @@ jobs:
             -DENABLE_UTILS=ON \
             -DENABLE_CLI=ON \
             -DENABLE_NLS=OFF \
+            -DENABLE_TESTS=OFF \
             -DWITH_CRYPTO=openssl \
             -DUSE_SYSTEM_EVENT2=OFF \
             -DUSE_SYSTEM_DEFLATE=OFF \
@@ -75,7 +65,7 @@ jobs:
       - name: Upload binaries
         uses: actions/upload-artifact@v7
         with:
-          name: transmission-bin-${{ matrix.os }}
+          name: transmission-bin-${{ matrix.arch }}
           path: |
             transmission-4.1.1/build/daemon/transmission-daemon
             transmission-4.1.1/build/utils/transmission*
