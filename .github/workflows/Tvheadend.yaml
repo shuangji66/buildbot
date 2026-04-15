@@ -23,18 +23,25 @@ jobs:
             build-essential git cmake curl pkg-config gettext \
             libssl-dev libdvbcsa-dev libavahi-client-dev libsqlite3-dev \
             libusb-1.0-0-dev zlib1g-dev wget python3 python3-pip \
-            libxml2-dev libva-dev libvdpau-dev libdrm-dev libasound2-dev libpulse-dev
+            libxml2-dev libva-dev libvdpau-dev libdrm-dev libasound2-dev libpulse-dev \
+            autotools-dev
           ln -sf /usr/bin/python3 /usr/bin/python
 
       - name: Build and install Tvheadend
         run: |
           git clone https://github.com/tvheadend/tvheadend.git /tmp/tvheadend
           cd /tmp/tvheadend
+          
+          # 替换所有过旧的 config.guess 和 config.sub（解决 aarch64 识别问题）
+          find . -name config.guess -exec cp /usr/share/misc/config.guess {} \;
+          find . -name config.sub -exec cp /usr/share/misc/config.sub {} \;
+          
           if [ "${{ matrix.arch }}" = "amd64" ]; then
             ./configure --prefix=/var/apps/Tvheadend/target
           else
             ./configure --arch=aarch64 --build=aarch64-linux-gnu --host=aarch64-linux-gnu --prefix=/var/apps/Tvheadend/target
           fi
+          
           make -j$(nproc)
           make install
 
