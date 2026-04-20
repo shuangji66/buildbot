@@ -3,7 +3,7 @@
     "stepTitle": "🧱基础设置",
     "items": [
       {
-        "type": "radio",
+        "type": "select",
         "field": "easytier_mode",
         "label": "运行模式",
         "rules": [],
