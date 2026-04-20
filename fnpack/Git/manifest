@@ -10,5 +10,5 @@ distributor=shuangji66
 distributor_url=https://github.com/shuangji66/FnDepot
 ctl_stop=false
 checkport=false
-disable_authorization_path=false
+disable_authorization_path=true
 changelog=${CHANGELOG}
