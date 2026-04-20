@@ -5,17 +5,24 @@ CONFIG_DIR="${TRIM_DATA_SHARE_PATHS%%:*}/config"
 
 CONFIG_TEMPLATE="${TRIM_APPDEST}/template/default.tpl"
 CONFIG_FILE="${TRIM_DATA_SHARE_PATHS%%:*}/config/default.toml"
-
+# 日志参数
 LOG_OPT="--file-log-dir ${TRIM_DATA_SHARE_PATHS%%:*}"
 LOG_OPT="${LOG_OPT} --file-log-level $log_level"
 LOG_OPT="${LOG_OPT} --file-log-size $log_size"
 LOG_OPT="${LOG_OPT} --file-log-count $log_count"
+# api参数
+API_OPT="--api-server-port $ui_port"
+if [ "$api_host_mode" = "true" ]; then
+    API_OPT="${API_OPT} --api-host $api_host"
+fi
+API_OPT="${API_OPT} --config-server-port $api_port"
+API_OPT="${API_OPT} --config-server-protocol $api_protocol"
+API_OPT="${API_OPT} -d ${TRIM_PKGHOME}/et.db"
+# rpc参数
 RPC_OPT="--rpc-portal $rpc_addr"
-if [ "$rpc_whitelist_mode" = "on" ]; then
+if [ "$rpc_whitelist_mode" = "true" ]; then
     RPC_OPT="${RPC_OPT} --rpc-portal-whitelist $rpc_whitelist"
 fi
-
-
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
@@ -67,7 +74,7 @@ start_process() {
             exit 1
         fi
         log_msg "配置文件模式启动..."
-        if [ "$rpc_mode" = "off" ]; then
+        if [ "$rpc_mode" = "false" ]; then
             "${TRIM_APPDEST}/server/easytier-core" --config-dir "$CONFIG_DIR" $LOG_OPT 2>&1 &
         else
             "${TRIM_APPDEST}/server/easytier-core" --config-dir "$CONFIG_DIR" $RPC_OPT $LOG_OPT 2>&1 &
@@ -76,8 +83,8 @@ start_process() {
         core_pid=$!
     elif [ "$easytier_mode" = "web" ]; then
         log_msg "web控制台模式启动..."
-        "${TRIM_APPDEST}/server/easytier-web-embed" -a "$ui_port" -d "${TRIM_PKGHOME}/et.db" 2>&1 &
-        "${TRIM_APPDEST}/server/easytier-core" -w "udp://127.0.0.1:22020/$ui_username" $LOG_OPT 2>&1 &
+        "${TRIM_APPDEST}/server/easytier-web-embed" $API_OPT 2>&1 &
+        "${TRIM_APPDEST}/server/easytier-core" -w "$api_protocol://127.0.0.1:$api_port/$ui_username" $LOG_OPT 2>&1 &
         core_pid=$!
     else
         if [ ! -f "$CONFIG_FILE" ]; then
