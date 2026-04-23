@@ -1,7 +1,7 @@
 appname=Tomato
 version=${VERSION}
 display_name=番茄小说下载器
-desc="""<p>🍅番茄小说下载器不精简版本，<a href="https://github.com/zhongbai2333/Tomato-Novel-Downloader" target="_blank">源项目</a></p><p>⭐使用说明：</p><p>使用前先检查更新，更新失败可临时开启更新代理。可在设置yaml修改下载路径，默认“/var/apps/Tomato/shares/book”，可联动reader书仓，设置下载目录为"/var/apps/Reader/shares/localStore"(需要设置读写权限)，浏览书仓并上架书籍，tomato更新章节后在reader更新书源刷新章节即可。刚启动可能会搜索下载失败，需等程序预热完毕。</p>"""
+desc="""<p>🍅番茄小说下载器不精简版本，<a href="https://github.com/zhongbai2333/Tomato-Novel-Downloader" target="_blank">源项目</a></p><p>⭐使用说明：</p><p>使用前先检查更新，更新失败可临时开启更新代理。可在设置yaml修改下载路径，默认“/var/apps/Tomato/shares/book”，可联动reader书仓，设置下载目录为"/var/apps/Reader/shares/localStore"(需要设置读写权限)，浏览书仓并上架书籍，tomato更新章节后在reader更新书源刷新章节即可。刚启动需等程序预热完毕，如弹窗报502错误，检查是否有去广告服务屏蔽字节系或"应用文件>logs"目录查看日志是否预热成功。</p>"""
 platform=${PLATFORM}
 source=thirdparty
 maintainer=zhongbai2333
