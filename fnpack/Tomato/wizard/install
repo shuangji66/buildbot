@@ -29,11 +29,20 @@
         "initValue": ""
       },
       {
-        "type": "switch",
+        "type": "select",
         "field": "proxy_switch",
         "label": "更新代理开关",
         "rules": [],
-        "options": [],
+        "options": [
+          {
+            "label": "关闭",
+            "value": "false"
+          },
+          {
+            "label": "开启",
+            "value": "true"
+          }
+        ],
         "helpText": "默认关闭，自更新失败时可临时开启，更新后关闭以防小说下载失败",
         "initValue": "false"
       },
@@ -43,7 +52,7 @@
         "label": "代理地址",
         "rules": [],
         "options": [],
-        "helpText": "仅支持http代理，填写需符合格式；推荐安装Fluxor代理",
+        "helpText": "仅支持http代理，填写需符合格式",
         "initValue": "http://127.0.0.1:7890"
       }
     ]
