@@ -41,7 +41,8 @@ jobs:
                 autoconf automake autopoint libtool pkg-config gettext \
                 gcc g++ make \
                 libsqlite3-dev libxml2-dev libssh2-1-dev \
-                libc-ares-dev zlib1g-dev libssl-dev &&
+                libc-ares-dev zlib1g-dev libssl-dev \
+                liblzma-dev libgpg-error-dev &&
               cd /work/aria2-${ARIA2_VERSION} &&
               autoreconf -i &&
               ./configure ARIA2_STATIC=yes \
