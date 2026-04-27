@@ -55,7 +55,7 @@ jobs:
                 --with-zlib \
                 --with-openssl \
                 --without-gnutls \
-                --without-libcurl &&
+                --without-libcurl \
               && make -j\$(nproc) \
               && make install \
               && strip /var/apps/Aria2/target/server/aria2c \
