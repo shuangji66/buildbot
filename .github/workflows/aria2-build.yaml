@@ -13,62 +13,52 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             arch: x86_64
-          - os: ubuntu-22.04-arm
+          - os: ubuntu-24.04-arm
             arch: aarch64
     runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            autoconf \
-            automake \
-            autopoint \
-            libtool \
-            pkg-config \
-            gettext \
-            gcc \
-            g++ \
-            make \
-            libsqlite3-dev \
-            libxml2-dev \
-            libssh2-1-dev \
-            libc-ares-dev \
-            zlib1g-dev \
-            libssl-dev
-
       - name: Download aria2 source
         run: |
           wget "$ARIA2_URL" -O "aria2-${ARIA2_VERSION}.tar.gz"
           tar xzf "aria2-${ARIA2_VERSION}.tar.gz"
 
-      - name: Build aria2 (static)
-        run: |
-          cd "aria2-${ARIA2_VERSION}"
-          autoreconf -i
-          ./configure ARIA2_STATIC=yes \
-            --prefix=/var/apps/Aria2/target/server \
-            --with-sqlite3 \
-            --with-libxml2 \
-            --with-libssh2 \
-            --with-libcares \
-            --with-zlib \
-            --with-openssl \
-            --without-gnutls \
-            --without-libcurl
-          make -j$(nproc)
+      - name: Create output directory
+        run: mkdir -p output
 
-      - name: Gather aria2c binary
+      - name: Build inside Docker (Debian bookworm)
         run: |
-          mkdir -p output
-          cp "aria2-${ARIA2_VERSION}/src/aria2c" output/
-          echo "Built binary:"
-          file output/aria2c
-          # Check linkage (should be mostly static)
-          ldd output/aria2c || true
+          docker run --rm \
+            -v "$PWD":/work \
+            -v "$PWD/output":/output \
+            debian:bookworm \
+            bash -c "
+              export DEBIAN_FRONTEND=noninteractive &&
+              apt-get update &&
+              apt-get install -y \
+                autoconf automake autopoint libtool pkg-config gettext \
+                gcc g++ make \
+                libsqlite3-dev libxml2-dev libssh2-1-dev \
+                libc-ares-dev zlib1g-dev libssl-dev &&
+              cd /work/aria2-${ARIA2_VERSION} &&
+              autoreconf -i &&
+              ./configure ARIA2_STATIC=yes \
+                --prefix=/var/apps/Aria2/target \
+                --bindir=/var/apps/Aria2/target/server \
+                --with-sqlite3 \
+                --with-libxml2 \
+                --with-libssh2 \
+                --with-libcares \
+                --with-zlib \
+                --with-openssl \
+                --without-gnutls \
+                --without-libcurl &&
+              make -j\$(nproc) &&
+              make strip install &&
+              cp /var/apps/Aria2/target/server/aria2c /output/
+            "
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
