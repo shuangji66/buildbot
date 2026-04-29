@@ -3,24 +3,24 @@
     "stepTitle": "欢迎使用",
     "items": [
       {
-        "type": "radio",
+        "type": "select",
         "field": "nginx_version",
         "label": "nginx版本",
         "rules": [],
         "options": [
           {
-            "label": "1.28-稳定分支",
+            "label": "mianline主线分支",
             "value": "main"
           },
           {
-            "label": "1.29-主线分支，包含新特性和安全修复",
+            "label": "stable稳定分支",
             "value": "stable"
           }
         ],
-        "initValue": "main"
+        "initValue": "stable"
       },
       {
-        "type": "radio",
+        "type": "select",
         "field": "nginx_ui",
         "label": "nginx-ui开关",
         "rules": [],
