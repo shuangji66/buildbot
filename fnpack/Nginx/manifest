@@ -1,7 +1,7 @@
 appname=Nginx
 version=${VERSION}
 display_name=Nginx
-desc="""<p>🐮Nginx是全球最受欢迎的Web服务器、高性能负载均衡器、反向代理、API网关和内容缓存。</p><p>❤️本项目结合nginx和nginx-ui，为飞牛OS特化构建，支持流媒体、邮件等高级特性，可切换主线和稳定分支。</p><p>⭐使用方法：安装后初次打开需要输入一次性密钥，生成在"应用文件/Nginx/nginx-ui/.install_secret"，可用万能编辑器查看。</p><p>✅️webui配置：完成nginx-ui配置和web服务添加，完成后可关闭nginx-ui节省内存。</p><p>✅️conf文件配置：应用文件/etc/conf.d目录修改default.conf或添加conf。</p><p>💡应用文件/nginx可放置网页资源。更多使用说明可参考<a href="https://nginxui.com/zh_CN/guide/about.html" target="_blank">nginx-ui文档</a>和<a href="https://nginx.org/en/docs/" target="_blank">nginx官方文档</a></p>"""
+desc="""<p>🐮Nginx是全球最受欢迎的Web服务器、高性能负载均衡器、反向代理、API网关和内容缓存。</p><p>❤️本项目结合nginx和nginx-ui，为飞牛OS特化构建，支持流媒体、邮件等高级特性，可切换主线和稳定分支。</p><p>⭐使用方法：安装后初次打开需要输入一次性密钥，生成在"应用文件/Nginx/nginx-ui/.install_secret"，可用万能编辑器查看，忘记密码可删除app.ini并重启。</p><p>✅️webui配置：完成nginx-ui配置和web服务添加，完成后可关闭nginx-ui节省内存。</p><p>✅️conf文件配置：应用文件/etc/conf.d目录修改default.conf或添加conf。</p><p>💡应用文件/nginx可放置网页资源。更多使用说明可参考<a href="https://nginxui.com/zh_CN/guide/about.html" target="_blank">nginx-ui文档</a>和<a href="https://nginx.org/en/docs/" target="_blank">nginx官方文档</a></p>"""
 platform=${PLATFORM}
 source=thirdparty
 maintainer=0xJacky
