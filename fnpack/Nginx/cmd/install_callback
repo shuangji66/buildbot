@@ -6,7 +6,9 @@ mkdir ${TRIM_PKGVAR}/logs
 mkdir ${TRIM_PKGVAR}/cache
 cp -rf ${TRIM_APPDEST}/etc/* ${APP_DIR}/etc/
 cp -rf ${TRIM_APPDEST}/html ${APP_DIR}/nginx/
-cp ${TRIM_APPDEST}/server/app.ini ${APP_DIR}/nginx-ui/app.ini
+if [ ! -f "${APP_DIR}/nginx-ui/app.ini" ]; then
+    cp ${TRIM_APPDEST}/server/app.ini ${APP_DIR}/nginx-ui/app.ini
+fi
 mkdir ${APP_DIR}/etc/sites-available
 mkdir ${APP_DIR}/etc/sites-enabled
 mkdir ${APP_DIR}/etc/streams-available
