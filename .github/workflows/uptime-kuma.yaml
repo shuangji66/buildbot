@@ -98,7 +98,7 @@ jobs:
           ls -la artifact_content/
 
       - name: 检出本仓库 (shuangji66/buildbot)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: buildbot_repo
 
@@ -158,7 +158,7 @@ jobs:
           ls -la *.fpk
 
       - name: 上传 fpk 文件作为 Artifact（供发布任务使用）
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fpk-${{ matrix.os }}
           path: build_workspace/*.fpk
