@@ -28,11 +28,14 @@ jobs:
         os: [ubuntu-24.04, ubuntu-24.04-arm]
     runs-on: ${{ matrix.os }}
     outputs:
+      app_name: ${{ steps.set_vars.outputs.app_name }}
       manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
+      changelog: ${{ steps.set_vars.outputs.changelog }}
     steps:
       - name: 设置变量（源码版本、manifest版本、changelog）
         id: set_vars
         run: |
+          APP_NAME="uptime-kuma"
           VERSION_SOURCE="${{ github.event.inputs.version }}"
           MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
           CHANGELOG="${{ github.event.inputs.changelog }}"
@@ -40,6 +43,7 @@ jobs:
             echo "错误：版本号不能为空"
             exit 1
           fi
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
           echo "version_source=$VERSION_SOURCE" >> $GITHUB_OUTPUT
           echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
           echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
@@ -208,3 +212,37 @@ jobs:
             echo "上传 $fpk"
             gh release upload "$TAG" "$fpk" --repo "$REPO" --clobber
           done
+
+      - name: 更新 fnpack.json 中的 uptime-kuma 条目
+        env:
+          GH_TOKEN: ${{ secrets.BUILDBOT }}
+        run: |
+          REPO="shuangji66/Fndepot"
+          TAG="${{ steps.date_tag.outputs.tag }}"
+          APP_NAME="${{ needs.build.outputs.app_name }}"
+          MANIFEST_VERSION="${{ needs.build.outputs.manifest_version }}"
+          CHANGELOG="${{ needs.build.outputs.changelog }}"
+
+          DOWNLOAD_URL_X86="https://github.com/${REPO}/releases/download/${TAG}/${APP_NAME}-${MANIFEST_VERSION}-x86.fpk"
+          DOWNLOAD_URL_ARM="https://github.com/${REPO}/releases/download/${TAG}/${APP_NAME}-${MANIFEST_VERSION}-arm.fpk"
+
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" fndepot_repo
+          cd fndepot_repo
+
+          jq --arg app "$APP_NAME" \
+             --arg version "$MANIFEST_VERSION" \
+             --arg changelog "$CHANGELOG" \
+             --arg url_x86 "$DOWNLOAD_URL_X86" \
+             --arg url_arm "$DOWNLOAD_URL_ARM" \
+             '.[$app].version = $version |
+              .[$app].changelog = $changelog |
+              .[$app].arch_diff.x86.download_url = $url_x86 |
+              .[$app].arch_diff.arm.download_url = $url_arm' \
+             fnpack.json > fnpack.json.tmp
+          mv fnpack.json.tmp fnpack.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add fnpack.json
+          git commit -m "chore: update ${APP_NAME} to ${MANIFEST_VERSION} (${TAG})"
+          git push
