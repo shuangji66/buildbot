@@ -15,15 +15,16 @@ CONFIG_TEMPLATE="${TRIM_APPDEST}/template/config.tpl"
 CONFIG_FILE="${TRIM_DATA_SHARE_PATHS%%:*}/config/default.toml"
 
 if [ -f "$CONFIG_FILE" ]; then
-    log_msg "默认配置文件已存在，跳过生成"
-else
-    sed \
-      -e "s|\${CONFIG_NAME}|$config_name|g" \
-      -e "s|\${CONFIG_SECRET}|$config_secret|g" \
-      -e "s|\${PEER_URL}|$peer_url|g" \
-      -e "s|\${UUID_ID}|$UUID|g" \
-      "${CONFIG_TEMPLATE}" > "$CONFIG_FILE" 2>/dev/null
-    log_msg "已生成默认配置文件"
+    rm -f $CONFIG_FILE
+    log_msg "旧配置文件已删除"
 fi
+
+sed \
+  -e "s|\${CONFIG_NAME}|$config_name|g" \
+  -e "s|\${CONFIG_SECRET}|$config_secret|g" \
+  -e "s|\${PEER_URL}|$peer_url|g" \
+  -e "s|\${UUID_ID}|$UUID|g" \
+  "${CONFIG_TEMPLATE}" > "$CONFIG_FILE" 2>/dev/null
+log_msg "默认配置文件已重置"
 
 exit 0
