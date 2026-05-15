@@ -50,9 +50,9 @@ jobs:
             "https://api.github.com/repos/autobcb/read/releases/latest")
           TAG_NAME=$(echo "$RELEASE_INFO" | jq -r '.tag_name')
           echo "Latest release tag: $TAG_NAME"
-          DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | test("web-.*\\.zip")) | .browser_download_url' | head -1)
+          DOWNLOAD_URL=$(echo "$RELEASE_INFO" | jq -r '.assets[] | select(.name | test("web.*\\.zip")) | .browser_download_url' | head -1)
           if [ -z "$DOWNLOAD_URL" ]; then
-            echo "错误：未找到 web-*.zip 文件"
+            echo "错误：未找到 web*.zip 文件"
             exit 1
           fi
           echo "下载地址: $DOWNLOAD_URL"
