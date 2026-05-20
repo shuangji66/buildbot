@@ -1,5 +1,6 @@
 #!/bin/bash
 APP_DIR="${TRIM_DATA_SHARE_PATHS%%:*}"
+INI_FILE="${TRIM_DATA_SHARE_PATHS%%:*}/nginx-ui/app.ini"
 
 # 创建目录结构释放文件
 mkdir ${TRIM_PKGVAR}/logs
@@ -15,5 +16,13 @@ mkdir ${APP_DIR}/etc/streams-available
 mkdir ${APP_DIR}/etc/streams-enabled
 mkdir ${APP_DIR}/etc/modules
 mkdir ${APP_DIR}/etc/ssl
+
+# 修改nginx-ui端口
+perl -i.bak -spe '
+    if ( $section eq "server" && /^\s*Port\s*=\s*/ ) {
+        s/^(\s*Port\s*=\s*).*/$1$port/;
+    }
+    if ( /^\[([^\]]+)\]/ ) { $section = $1; }
+' -- -port="$ui_port" "$INI_FILE"
 
 exit 0
