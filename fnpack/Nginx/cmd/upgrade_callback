@@ -1,7 +1,18 @@
 #!/bin/bash
+INI_FILE="${TRIM_DATA_SHARE_PATHS%%:*}/nginx-ui/app.ini"
+
+# 迁移老版本nginx-ui配置文件
 if [ -d "${TRIM_PKGVAR}/nginx-ui" ]; then
     rsync -av --delete "${TRIM_PKGVAR}/nginx-ui/" "${TRIM_DATA_SHARE_PATHS%%:*}/nginx-ui/"
     rm -rf "${TRIM_PKGVAR}/nginx-ui"
 fi
+
+# 修改nginx-ui端口
+perl -i.bak -spe '
+    if ( $section eq "server" && /^\s*Port\s*=\s*/ ) {
+        s/^(\s*Port\s*=\s*).*/$1$port/;
+    }
+    if ( /^\[([^\]]+)\]/ ) { $section = $1; }
+' -- -port="$ui_port" "$INI_FILE"
 
 exit 0
