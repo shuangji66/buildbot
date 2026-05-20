@@ -1,5 +1,12 @@
 #!/bin/bash
+INI_FILE="${TRIM_DATA_SHARE_PATHS%%:*}/nginx-ui/app.ini"
 
-### This script is called after the user change environment variables in application setting page.
+# 修改nginx-ui端口
+perl -i.bak -spe '
+    if ( $section eq "server" && /^\s*Port\s*=\s*/ ) {
+        s/^(\s*Port\s*=\s*).*/$1$port/;
+    }
+    if ( /^\[([^\]]+)\]/ ) { $section = $1; }
+' -- -port="$ui_port" "$INI_FILE"
 
 exit 0
