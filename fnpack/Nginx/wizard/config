@@ -1,6 +1,6 @@
 [
   {
-    "stepTitle": "欢迎使用",
+    "stepTitle": "运行设置",
     "items": [
       {
         "type": "select",
@@ -34,7 +34,22 @@
             "value": "off"
           }
         ],
+        "helpText": "",
         "initValue": "on"
+      },
+      {
+        "type": "text",
+        "field": "ui_port",
+        "label": "nginx-ui面板端口",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "helpText": "该设置可同步修改nginx-ui面板和飞牛入口端口，不要在面板中单独修改端口",
+        "initValue": "9000"
       }
     ]
   }
