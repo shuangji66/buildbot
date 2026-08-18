@@ -1,0 +1,31 @@
+name: Build and Package Hermes
+
+on:
+  workflow_dispatch:   # 允许手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'   # 使用你需要的版本
+
+      - name: Create server directory
+        run: mkdir -p server
+
+      - name: Install hermes-web-ui globally into server
+        # 使用 --prefix 指定安装根目录，可执行文件会放在 server/bin 下
+        run: npm install -g hermes-web-ui --prefix ./server
+
+      - name: Compress server directory
+        run: tar -czf server.tar.gz server
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: server-package
+          path: server.tar.gz
