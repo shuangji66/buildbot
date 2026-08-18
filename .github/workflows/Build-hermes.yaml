@@ -19,7 +19,7 @@ jobs:
 
       - name: Install hermes-web-ui globally into server
         # 使用 --prefix 指定安装根目录，可执行文件会放在 server/bin 下
-        run: npm install -g hermes-web-ui --prefix ./server
+        run: npm install -g hermes hermes-web-ui --prefix ./server
 
       - name: Compress server directory
         run: tar -czf server.tar.gz server
