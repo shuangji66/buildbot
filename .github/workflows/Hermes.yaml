@@ -68,14 +68,18 @@ jobs:
           path: /var/apps/Hermes/target/server.tar.gz
           if-no-files-found: error
 
-  # 第二步：在宿主机（容器外）进行 fnpack 打包
+  # 第二步：在宿主机（容器外）进行 fnpack 打包，使用对应架构的 runner
   package:
     name: 打包 fpk
     needs: build-in-container
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        platform: [x86, arm]   # 需要分别打包两个架构
+        include:
+          - os: ubuntu-24.04
+            platform: x86
+          - os: ubuntu-24.04-arm
+            platform: arm
     outputs:
       app_name: ${{ steps.set_vars.outputs.app_name }}
       manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
@@ -156,7 +160,7 @@ jobs:
 
   publish:
     name: 发布到 Fndepot Release
-    needs: package   # 依赖打包 job
+    needs: package
     if: always() && needs.package.result == 'success' && github.event.inputs.publish == 'true'
     runs-on: ubuntu-24.04
     steps:
