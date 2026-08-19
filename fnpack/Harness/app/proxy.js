@@ -67,6 +67,111 @@ const target = new URL(TARGET_URL);
 const targetHost = target.hostname;
 const targetPort = target.port || (target.protocol === 'https:' ? 443 : 80);
 
+// ---------- 前端注入：绕过 DSH 前端的 loopback 门，修复经反代访问时插件设置页空白 ----------
+// 背景：DSH 的 dsh-web-ui 前端在 Settings -> Plugins 页面，仅当页面 hostname 是
+// loopback（localhost / 127/8 / [::1]）时，连接层 connection.isLoopback 才为 true，
+// 进而 settings scope 才会以 "host" 模式读写主机设置。经本反代以非 loopback 主机名
+// （如 NAS 局域网 IP）访问时 isLoopback=false，settings scope 退化为 "memory" 模式，
+// 永远不调用 settings API，插件配置卡片静默渲染为空白。
+// 这里通过向 index.html 注入一段引导脚本，在浏览器端做两件事：
+//   1) 包装 dsh-client-connection 模块 apply()，把 connection.isLoopback 强制置为 true
+//      （在 ctx.provide 注入 connection 的那一刻改，兼有 ctx.get 兜底）；
+//   2) 包装 dsh-client-ui-settings 模块的 SettingsScopeController.prototype.enqueue，
+//      让 settings scope 即便处于 "memory" 模式也真正执行读写（等价于把 "memory"
+//      改成 "host"），保证插件设置页不再空白——这是兜底，不依赖 isLoopback 判定。
+// 仅影响前端渲染路径；后端仍走 loopback socket + Host 栅栏，安全边界不变
+// （DSH discussion #2403）。
+const BOOTSTRAP_SCRIPT = `(function () {
+  var wrapped = false;
+  function wrapLoader(loader) {
+    if (wrapped || !loader || typeof loader.load !== "function") return;
+    wrapped = true;
+    var origLoad = loader.load;
+    loader.load = function (entry) {
+      try {
+        if (entry && typeof entry.id === "string" && typeof entry.factory === "function") {
+          if (entry.id === "@deepseek-ai/dsh-client-connection") {
+            var connFactory = entry.factory;
+            entry.factory = function (require) {
+              var exports = connFactory.apply(this, arguments);
+              try {
+                var origApply = exports && exports.apply;
+                if (typeof origApply === "function") {
+                  exports.apply = function (ctx) {
+                    var patched = false;
+                    try {
+                      var origProvide = ctx && ctx.provide;
+                      if (typeof origProvide === "function") {
+                        ctx.provide = function (name, value) {
+                          if (name === "connection" && value) {
+                            try { Object.defineProperty(value, "isLoopback", { value: true, configurable: true, writable: true }); } catch (_e) {}
+                            patched = true;
+                          }
+                          return origProvide.apply(ctx, arguments);
+                        };
+                      }
+                    } catch (_e) {}
+                    var r = origApply.apply(this, arguments);
+                    try {
+                      if (!patched) {
+                        var conn = ctx && ctx.get && ctx.get("connection");
+                        if (conn) Object.defineProperty(conn, "isLoopback", { value: true, configurable: true, writable: true });
+                      }
+                    } catch (_e) {}
+                    return r;
+                  };
+                }
+              } catch (_e) {}
+              return exports;
+            };
+          } else if (entry.id === "@deepseek-ai/dsh-client-ui-settings") {
+            var setFactory = entry.factory;
+            entry.factory = function (require) {
+              var exports = setFactory.apply(this, arguments);
+              try {
+                var Ctl = exports && exports.SettingsScopeController;
+                if (Ctl && Ctl.prototype && typeof Ctl.prototype.enqueue === "function") {
+                  var origEnqueue = Ctl.prototype.enqueue;
+                  Ctl.prototype.enqueue = function (operation) {
+                    if (this.disposed) return Promise.resolve();
+                    var task = this.tail.then(async function () { if (this.disposed) return; await operation(); });
+                    this.tail = task.catch(function () {});
+                    return task;
+                  };
+                }
+              } catch (_e) {}
+              return exports;
+            };
+          }
+        }
+      } catch (_e) {}
+      return origLoad.apply(loader, arguments);
+    };
+  }
+  // 若加载器已安装则立即包装；否则拦截其赋值时刻（时机无关）。
+  if (window.__ModuleLoader__) wrapLoader(window.__ModuleLoader__);
+  try {
+    Object.defineProperty(window, "__ModuleLoader__", {
+      configurable: true,
+      get: function () { return window.__proxy_boot_loader_store__; },
+      set: function (v) {
+        window.__proxy_boot_loader_store__ = v;
+        try { wrapLoader(v); } catch (_e) {}
+      }
+    });
+  } catch (_e) {}
+})();`;
+
+/** 在 HTML 正文的 <head> 之后注入引导脚本。 */
+function injectIntoHtml(body) {
+  const script = `<script>${BOOTSTRAP_SCRIPT}</script>`;
+  const head = body.indexOf('<head>');
+  if (head !== -1) {
+    return `${body.slice(0, head + 6)}${script}${body.slice(head + 6)}`;
+  }
+  return `${script}${body}`;
+}
+
 // ---------- 后端可用性检查 ----------
 /** 快速检查一次（超时 500ms） */
 function quickCheckBackend(timeout = 500) {
@@ -124,11 +229,39 @@ function forwardRequest(req, res) {
   options.headers.host = `${targetHost}:${targetPort}`;
   options.headers.origin = `http://${options.headers.host}`;
 
+  // 请求上游以非压缩方式返回，方便注入脚本（DSH 自身不压缩，这里显式声明以防外部层）
+  if (options.headers['accept-encoding'] !== undefined) {
+    delete options.headers['accept-encoding'];
+  }
+  options.headers['accept-encoding'] = 'identity';
+
   const proxyReq = http.request(options, (proxyRes) => {
     const headers = { ...proxyRes.headers };
     headers['access-control-allow-origin'] = '*';
-    res.writeHead(proxyRes.statusCode, headers);
-    proxyRes.pipe(res);
+    const isHtml = /text\/html/i.test(headers['content-type'] || '');
+    if (isHtml && proxyRes.statusCode >= 200 && proxyRes.statusCode < 300) {
+      // 收集 HTML 正文并注入引导脚本（改动 body 后需重写 content-length）
+      const chunks = [];
+      proxyRes.on('data', (c) => chunks.push(c));
+      proxyRes.on('end', () => {
+        let body = Buffer.concat(chunks).toString('utf8');
+        if (req.method === 'GET' && req.headers['accept'] && /html/i.test(req.headers['accept'])) {
+          body = injectIntoHtml(body);
+        }
+        const out = Buffer.from(body, 'utf8');
+        headers['content-length'] = String(out.length);
+        res.writeHead(proxyRes.statusCode, headers);
+        res.end(out);
+      });
+      proxyRes.on('error', (err) => {
+        console.error(`[Proxy Response Error] ${err.message}`);
+        res.writeHead(502, { 'content-type': 'text/plain' });
+        res.end('Proxy error');
+      });
+    } else {
+      res.writeHead(proxyRes.statusCode, headers);
+      proxyRes.pipe(res);
+    }
   });
 
   proxyReq.on('error', (err) => {
