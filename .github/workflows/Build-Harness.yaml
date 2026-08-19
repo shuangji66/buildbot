@@ -112,11 +112,21 @@ jobs:
           pnpm install --no-frozen-lockfile
           pnpm run build
 
+      - name: 更换apt源为Ubuntu官方源
+        run: |
+          CODENAME=$(lsb_release -sc)
+          sudo tee /etc/apt/sources.list > /dev/null <<EOF
+          deb http://archive.ubuntu.com/ubuntu/ $CODENAME main restricted universe multiverse
+          deb http://archive.ubuntu.com/ubuntu/ $CODENAME-updates main restricted universe multiverse
+          deb http://archive.ubuntu.com/ubuntu/ $CODENAME-backports main restricted universe multiverse
+          deb http://security.ubuntu.com/ubuntu/ $CODENAME-security main restricted universe multiverse
+          EOF
+          sudo apt-get update
+
       - name: 安装构建依赖
         run: |
-          sudo apt-get update
           sudo apt-get install -y musl-tools build-essential
-
+          
       - name: 构建 landlock-run
         working-directory: server/native/landlock-run
         run: |
