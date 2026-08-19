@@ -18,7 +18,8 @@ on:
         default: true
 
 jobs:
-  build:
+  # 第一步：在 Debian 12 容器中安装 hermes 并压缩 server 目录
+  build-in-container:
     strategy:
       matrix:
         include:
@@ -60,6 +61,39 @@ jobs:
           cd /var/apps/Hermes/target
           tar -czf server.tar.gz server
 
+      - name: 上传 server.tar.gz 作为 Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: server-${{ matrix.platform }}
+          path: /var/apps/Hermes/target/server.tar.gz
+          if-no-files-found: error
+
+  # 第二步：在宿主机（容器外）进行 fnpack 打包
+  package:
+    name: 打包 fpk
+    needs: build-in-container
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        platform: [x86, arm]   # 需要分别打包两个架构
+    outputs:
+      app_name: ${{ steps.set_vars.outputs.app_name }}
+      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
+      changelog: ${{ steps.set_vars.outputs.changelog }}
+    steps:
+      - name: 设置项目变量（从 build-in-container 继承）
+        id: set_vars
+        run: |
+          echo "app_name=${{ needs.build-in-container.outputs.app_name }}" >> $GITHUB_OUTPUT
+          echo "manifest_version=${{ needs.build-in-container.outputs.manifest_version }}" >> $GITHUB_OUTPUT
+          echo "changelog=${{ needs.build-in-container.outputs.changelog }}" >> $GITHUB_OUTPUT
+
+      - name: 下载对应架构的 server.tar.gz
+        uses: actions/download-artifact@v7
+        with:
+          name: server-${{ matrix.platform }}
+          path: ./server_artifact
+
       - name: 检出 buildbot 仓库（包含 fnpack 模板）
         uses: actions/checkout@v7
         with:
@@ -68,7 +102,7 @@ jobs:
       - name: 准备 fnpack 工作区
         run: |
           mkdir -p build_workspace
-          cp -r "buildbot_repo/fnpack/${{ steps.set_vars.outputs.app_name }}" build_workspace/
+          cp -r "buildbot_repo/fnpack/${{ needs.build-in-container.outputs.app_name }}" build_workspace/
           if [ "${{ matrix.platform }}" = "x86" ]; then
             FNPACK_BIN="fnpack-1.2.1-linux-amd64"
           else
@@ -80,17 +114,17 @@ jobs:
       - name: 复制 server.tar.gz 到 app 目录
         run: |
           mkdir -p build_workspace/Hermes/app
-          cp /var/apps/Hermes/target/server.tar.gz build_workspace/Hermes/app/
+          cp ./server_artifact/server.tar.gz build_workspace/Hermes/app/
 
       - name: 修改 manifest 文件
         run: |
-          MANIFEST_PATH="build_workspace/${{ steps.set_vars.outputs.app_name }}/manifest"
+          MANIFEST_PATH="build_workspace/${{ needs.build-in-container.outputs.app_name }}/manifest"
           if [ ! -f "$MANIFEST_PATH" ]; then
             echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
             exit 1
           fi
-          MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
-          CHANGELOG="${{ steps.set_vars.outputs.changelog }}"
+          MANIFEST_VERSION="${{ needs.build-in-container.outputs.manifest_version }}"
+          CHANGELOG="${{ needs.build-in-container.outputs.changelog }}"
           ESCAPED_CHANGELOG=$(printf '%s' "$CHANGELOG" | jq -sRr @json)
           sed -i "s/\${VERSION}/$MANIFEST_VERSION/g" "$MANIFEST_PATH"
           sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
@@ -101,13 +135,13 @@ jobs:
       - name: 执行 fnpack 打包
         run: |
           cd build_workspace
-          ./fnpack build "${{ steps.set_vars.outputs.app_name }}"
+          ./fnpack build "${{ needs.build-in-container.outputs.app_name }}"
           FPK_FILE=$(ls *.fpk | head -n 1)
           if [ -z "$FPK_FILE" ]; then
             echo "错误：未找到生成的 fpk 文件"
             exit 1
           fi
-          FINAL_NAME="${{ steps.set_vars.outputs.app_name }}-${{ steps.set_vars.outputs.manifest_version }}-${{ matrix.platform }}.fpk"
+          FINAL_NAME="${{ needs.build-in-container.outputs.app_name }}-${{ needs.build-in-container.outputs.manifest_version }}-${{ matrix.platform }}.fpk"
           mv "$FPK_FILE" "$FINAL_NAME"
           echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
           echo "打包完成，生成文件：$FINAL_NAME"
@@ -122,8 +156,8 @@ jobs:
 
   publish:
     name: 发布到 Fndepot Release
-    needs: build
-    if: always() && needs.build.result == 'success' && github.event.inputs.publish == 'true'
+    needs: package   # 依赖打包 job
+    if: always() && needs.package.result == 'success' && github.event.inputs.publish == 'true'
     runs-on: ubuntu-24.04
     steps:
       - name: 下载所有架构的 fpk 文件
@@ -146,9 +180,9 @@ jobs:
           REPO="shuangji66/Fndepot"
           TAG="${{ steps.date_tag.outputs.tag }}"
           TITLE="${{ steps.date_tag.outputs.RELEASE_TITLE }}"
-          MANIFEST_VERSION="${{ needs.build.outputs.manifest_version }}"
-          CHANGELOG="${{ needs.build.outputs.changelog }}"
-          NEW_NOTE="构建 ${{ needs.build.outputs.app_name }} 版本 ${MANIFEST_VERSION}。更新日志：${CHANGELOG}"
+          MANIFEST_VERSION="${{ needs.package.outputs.manifest_version }}"
+          CHANGELOG="${{ needs.package.outputs.changelog }}"
+          NEW_NOTE="构建 ${{ needs.package.outputs.app_name }} 版本 ${MANIFEST_VERSION}。更新日志：${CHANGELOG}"
 
           if gh release view "$TAG" --repo "$REPO" &>/dev/null; then
             echo "Release $TAG 已存在，将添加资产并追加描述"
@@ -174,9 +208,9 @@ jobs:
         run: |
           REPO="shuangji66/Fndepot"
           TAG="${{ steps.date_tag.outputs.tag }}"
-          APP_NAME="${{ needs.build.outputs.app_name }}"
-          MANIFEST_VERSION="${{ needs.build.outputs.manifest_version }}"
-          CHANGELOG="${{ needs.build.outputs.changelog }}"
+          APP_NAME="${{ needs.package.outputs.app_name }}"
+          MANIFEST_VERSION="${{ needs.package.outputs.manifest_version }}"
+          CHANGELOG="${{ needs.package.outputs.changelog }}"
 
           DOWNLOAD_URL_X86="https://github.com/${REPO}/releases/download/${TAG}/${APP_NAME}-${MANIFEST_VERSION}-x86.fpk"
           DOWNLOAD_URL_ARM="https://github.com/${REPO}/releases/download/${TAG}/${APP_NAME}-${MANIFEST_VERSION}-arm.fpk"
