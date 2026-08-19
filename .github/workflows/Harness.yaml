@@ -1,75 +1,40 @@
-name: Build DeepSeek Harness
+name: Package DeepSeek Harness
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ${{ matrix.runner }}
+  build-in-container:
     strategy:
       matrix:
         include:
-          - arch: x64
-            runner: ubuntu-24.04
-            node_url: https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-x64.tar.xz
-          - arch: arm64
-            runner: ubuntu-24.04-arm
-            node_url: https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-arm64.tar.xz
-
+          - os: ubuntu-24.04
+            platform: x86
+          - os: ubuntu-24.04-arm
+            platform: arm
+    runs-on: ${{ matrix.os }}
+    container: debian:12
     steps:
-      - name: Checkout deepseek-harness
-        uses: actions/checkout@v7
-        with:
-          repository: deepseek-ai/deepseek-harness
-          path: server
-
-      - name: Download and setup Node.js
+      - name: 安装 Node.js 24 和基础工具
         run: |
-          # 下载 Node.js 二进制
-          curl -L -o node.tar.xz ${{ matrix.node_url }}
-          tar -xf node.tar.xz
-          mv node-v24.19.0-linux-* node
+          apt-get update
+          apt-get install -y curl git python3 build-essential
+          curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+          apt-get install -y nodejs
 
-          # 将 node/bin 加入 PATH（全局可用）
-          echo "$(pwd)/node/bin" >> $GITHUB_PATH
-
-          # 设置 pnpm 的家目录和存储目录（全部放在 node/.pnpm 下）
-          echo "PNPM_HOME=$(pwd)/.pnpm" >> $GITHUB_ENV
-
-      - name: Enable Corepack and install pnpm
+      - name: 创建目标目录并全局安装
         run: |
-          corepack enable
-          corepack prepare pnpm@latest --activate
+          mkdir -p /var/apps/Harness/target/server
+          npm install @deepseek-ai/dsh@latest --prefix /var/apps/Harness/target/server
 
-      - name: Install dependencies
-        working-directory: server
-        run: pnpm install
-
-      - name: Build project
-        working-directory: server
-        run: pnpm run build
-
-
-      - name: Prune to production dependencies and clean sources
-        working-directory: server
+      - name: 压缩 server 目录为 server.tar.gz
         run: |
-           rm -rf .github .git
-
-      - name: Compress entire node directory
-        run: |
-          tar -czf node.tar.gz node
+          cd /var/apps/Harness/target
           tar -czf server.tar.gz server
 
-      - name: Upload artifact
+      - name: 上传 server.tar.gz 作为 Artifact
         uses: actions/upload-artifact@v7
         with:
-          name: server-${{ matrix.arch }}
-          path: |
-            server.tar.gz
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: node-${{ matrix.arch }}
-          path: |
-            node.tar.gz
+          name: server-${{ matrix.platform }}
+          path: /var/apps/Harness/target/server.tar.gz
+          if-no-files-found: error
