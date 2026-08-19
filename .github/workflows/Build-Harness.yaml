@@ -112,7 +112,8 @@ jobs:
           pnpm install --no-frozen-lockfile
           pnpm run build
 
-      - name: 更换apt源为Ubuntu官方源
+      - name: 更换apt源为Ubuntu官方源（仅x86）
+        if: matrix.platform == 'x86'
         run: |
           CODENAME=$(lsb_release -sc)
           sudo tee /etc/apt/sources.list > /dev/null <<EOF
@@ -121,7 +122,9 @@ jobs:
           deb http://archive.ubuntu.com/ubuntu/ $CODENAME-backports main restricted universe multiverse
           deb http://security.ubuntu.com/ubuntu/ $CODENAME-security main restricted universe multiverse
           EOF
-          sudo apt-get update
+
+      - name: 更新apt缓存
+        run: sudo apt-get update
 
       - name: 安装构建依赖
         run: |
