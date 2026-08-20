@@ -6,7 +6,7 @@ on:
       dsh_version:
         description: 'dsh 包版本（例如 0.1.0-rc.8，或 latest）'
         required: true
-        default:'0.1.0-rc.8'
+        default: '0.1.0-rc.8'
         type: string
       manifest_version:
         description: 'manifest 中的版本号（例如 1.0.0）'
