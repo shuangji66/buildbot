@@ -17,7 +17,7 @@ LOG_FILE="${TRIM_DATA_SHARE_PATHS%%:*}/info.log"
 PID_FILE="${TRIM_PKGVAR}/app.pid"
 
 # write the command to start your program here 
-CMD="node apps/cli/lib/bin.js web"
+CMD="node apps/cli/lib/bin.js web --no-open"
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
