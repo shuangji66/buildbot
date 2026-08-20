@@ -1,7 +1,13 @@
 name: Build and pack modified dsh
 
 on:
-  workflow_dispatch:          # 手动触发，可按需调整
+  workflow_dispatch:
+    inputs:
+      dsh_version:
+        description: '版本号 (例如 0.1.0-rc.8，或 latest)'
+        required: true
+        default: '0.1.0-rc.8'
+        type: string
 
 jobs:
   build:
@@ -12,10 +18,10 @@ jobs:
           - arch: x86
             runner: ubuntu-latest
           - arch: arm
-            runner: ubuntu-24.04-arm   # GitHub 官方 ARM 运行器（公开预览）
+            runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     container:
-      image: debian:12          # 所有步骤在 Debian 12 容器中运行
+      image: debian:12
 
     steps:
       - name: Install system dependencies & Node.js 24
@@ -27,12 +33,11 @@ jobs:
           node -v
           npm -v
 
-      # 无需检出代码，因为我们只操作 npm 包
-
       - name: Pack @deepseek-ai/dsh
         id: pack
         run: |
-          PACKED=$(npm pack @deepseek-ai/dsh@latest)
+          VERSION="${{ inputs.dsh_version }}"
+          PACKED=$(npm pack "@deepseek-ai/dsh@$VERSION")
           echo "PACKED=$PACKED" >> $GITHUB_ENV
           tar xzf "$PACKED"
 
@@ -41,7 +46,7 @@ jobs:
           cd package
           jq '.dependencies = (.dependencies // {} | . + {"dshmarket": "latest"})' package.json > tmp.json
           mv tmp.json package.json
-          cat package.json   # 可选：验证修改
+          cat package.json
 
       - name: Repack modified tarball
         run: |
@@ -52,8 +57,81 @@ jobs:
           mkdir -p /var/apps/Harness/target/server
           cd /var/apps/Harness/target/server
           npm init -y
-          # 使用 $GITHUB_WORKSPACE 引用容器内挂载的工作空间
           npm install "$GITHUB_WORKSPACE/$PACKED"
+
+      - name: Modify PROFILE_TEMPLATES.web array in dsh-app-boot
+        run: |
+          FILE="/var/apps/Harness/target/server/node_modules/@deepseek-ai/dsh-app-boot/lib/index.js"
+          if [ ! -f "$FILE" ]; then
+            echo "Warning: $FILE not found, skipping modification"
+            exit 0
+          fi
+
+          node -e "
+            const fs = require('fs');
+            const file = process.argv[1];
+            let content = fs.readFileSync(file, 'utf8');
+
+            // 查找 PROFILE_TEMPLATES = { 的位置
+            const varName = 'PROFILE_TEMPLATES';
+            const assignIndex = content.indexOf(varName + ' = {');
+            if (assignIndex === -1) {
+              console.error('Could not find PROFILE_TEMPLATES definition');
+              process.exit(1);
+            }
+
+            // 从该位置开始，计数大括号找到匹配的 }
+            let braceCount = 0;
+            let start = assignIndex + content.substring(assignIndex).indexOf('{');
+            let end = start;
+            for (let i = start; i < content.length; i++) {
+              if (content[i] === '{') braceCount++;
+              else if (content[i] === '}') {
+                braceCount--;
+                if (braceCount === 0) {
+                  end = i;
+                  break;
+                }
+              }
+            }
+            if (braceCount !== 0) {
+              console.error('Unbalanced braces in PROFILE_TEMPLATES definition');
+              process.exit(1);
+            }
+
+            const fullMatch = content.substring(start, end + 1);
+            // 在匹配块内查找 web: [ ... ]
+            const webRegex = /web\\s*:\\s*\\[([^\\]]*)\\]/;
+            const webMatch = fullMatch.match(webRegex);
+            if (!webMatch) {
+              console.error('Could not find web array in PROFILE_TEMPLATES');
+              process.exit(1);
+            }
+
+            const originalArray = webMatch[1];
+            // 解析已有项（去除多余空白）
+            let items = originalArray.split(',').map(s => s.trim()).filter(s => s.length > 0);
+            if (items.includes('\"dshmarket\"')) {
+              console.log('dshmarket already in web array, skipping');
+            } else {
+              // 追加
+              items.push('\"dshmarket\"');
+              const newArrayStr = items.join(', ');
+              const newFullMatch = fullMatch.replace(webRegex, 'web: [' + newArrayStr + ']');
+              // 替换原内容
+              content = content.substring(0, start) + newFullMatch + content.substring(end + 1);
+              fs.writeFileSync(file, content);
+              console.log('Successfully added dshmarket to PROFILE_TEMPLATES.web');
+            }
+
+            // 显示修改后的定义（验证）
+            const snippet = content.substring(
+              Math.max(0, assignIndex - 20),
+              Math.min(content.length, assignIndex + 300)
+            );
+            console.log('--- Snippet around definition ---');
+            console.log(snippet);
+          " "$FILE"
 
       - name: Compress server directory
         run: |
