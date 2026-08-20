@@ -3,7 +3,8 @@ export PATH=/var/apps/nodejs_v24/target/bin:$PATH
 export HOME="${TRIM_DATA_SHARE_PATHS%%:*}"
 export PNPM_HOME="${TRIM_PKGVAR}/pnpm"
 export PROXY_PORT="$port"
-export PROXY_HTTPS="$proxy_https"
+export PROXY_PASSWORD="$password"
+export PROXY_AUTH="$auth_mode"
 if [ "$proxy_mode" = "1" ];then
     export http_proxy="$proxy_addr"
     export https_proxy="$proxy_addr"
@@ -30,7 +31,7 @@ start_process() {
     log_msg "Starting process ..."
     cd ${TRIM_APPDEST}/server
     bash -c "${CMD}" >> ${LOG_FILE} 2>&1 &
-    sleep 2s
+    sleep 2
     nohup node ${TRIM_APPDEST}/proxy.js 2>&1 &
     printf "%s" "$!" > ${PID_FILE}
     return 0
