@@ -3,7 +3,8 @@ const net = require('net');
 const url = require('url');
 
 // ---------- 配置 ----------
-const TARGET_URL = 'http://127.0.0.1:3080';
+const TARGET_PORT = process.env.TARGET_PORT || 3080;
+const TARGET_URL = `http://127.0.0.1:${TARGET_PORT}`;
 const PROXY_PORT = Number(process.env.PROXY_PORT) || 3079;
 // --------------------------
 
