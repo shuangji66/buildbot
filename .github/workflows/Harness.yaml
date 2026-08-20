@@ -1,40 +1,67 @@
-name: Package DeepSeek Harness
+name: Build and pack modified dsh
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:          # 手动触发，可按需调整
 
 jobs:
-  build-in-container:
+  build:
     strategy:
       matrix:
+        arch: [x86, arm]
         include:
-          - os: ubuntu-24.04
-            platform: x86
-          - os: ubuntu-24.04-arm
-            platform: arm
-    runs-on: ${{ matrix.os }}
-    container: debian:12
+          - arch: x86
+            runner: ubuntu-latest
+          - arch: arm
+            runner: ubuntu-24.04-arm   # GitHub 官方 ARM 运行器（公开预览）
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: debian:12          # 所有步骤在 Debian 12 容器中运行
+
     steps:
-      - name: 安装 Node.js 24 和基础工具
+      - name: Install system dependencies & Node.js 24
         run: |
           apt-get update
-          apt-get install -y curl git python3 build-essential
+          apt-get install -y curl tar jq xz-utils
           curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
           apt-get install -y nodejs
+          node -v
+          npm -v
 
-      - name: 创建目标目录并全局安装
+      # 无需检出代码，因为我们只操作 npm 包
+
+      - name: Pack @deepseek-ai/dsh
+        id: pack
+        run: |
+          PACKED=$(npm pack @deepseek-ai/dsh@latest)
+          echo "PACKED=$PACKED" >> $GITHUB_ENV
+          tar xzf "$PACKED"
+
+      - name: Modify package.json – add dshmarket dependency
+        run: |
+          cd package
+          jq '.dependencies = (.dependencies // {} | . + {"dshmarket": "latest"})' package.json > tmp.json
+          mv tmp.json package.json
+          cat package.json   # 可选：验证修改
+
+      - name: Repack modified tarball
+        run: |
+          tar czf "$PACKED" package
+
+      - name: Install modified package into /var/apps/Harness/target/server
         run: |
           mkdir -p /var/apps/Harness/target/server
-          npm install @deepseek-ai/dsh@latest --prefix /var/apps/Harness/target/server
+          cd /var/apps/Harness/target/server
+          npm init -y
+          # 使用 $GITHUB_WORKSPACE 引用容器内挂载的工作空间
+          npm install "$GITHUB_WORKSPACE/$PACKED"
 
-      - name: 压缩 server 目录为 server.tar.gz
+      - name: Compress server directory
         run: |
-          cd /var/apps/Harness/target
-          tar -czf server.tar.gz server
+          tar czf "$GITHUB_WORKSPACE/server-${{ matrix.arch }}.tar.gz" \
+            -C /var/apps/Harness/target server
 
-      - name: 上传 server.tar.gz 作为 Artifact
+      - name: Upload server artifact
         uses: actions/upload-artifact@v7
         with:
-          name: server-${{ matrix.platform }}
-          path: /var/apps/Harness/target/server.tar.gz
-          if-no-files-found: error
+          name: server-${{ matrix.arch }}
+          path: server-${{ matrix.arch }}.tar.gz
