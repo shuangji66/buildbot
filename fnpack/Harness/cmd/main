@@ -1,8 +1,10 @@
 #!/bin/bash
 export PATH=/var/apps/nodejs_v24/target/bin:$PATH
+export PATH=${TRIM_APPDEST}/server/node_modules/.bin:$PATH
 export HOME="${TRIM_DATA_SHARE_PATHS%%:*}"
 export PNPM_HOME="${TRIM_PKGVAR}/pnpm"
-export PROXY_PORT="$port"
+export TARGET_PORT="$dsh_port"
+export PROXY_PORT="$proxy_port"
 export PROXY_PASSWORD="$password"
 export PROXY_AUTH="$auth_mode"
 if [ "$proxy_mode" = "1" ];then
@@ -16,8 +18,7 @@ fi
 LOG_FILE="${TRIM_DATA_SHARE_PATHS%%:*}/info.log"
 PID_FILE="${TRIM_PKGVAR}/app.pid"
 
-# write the command to start your program here 
-CMD="node apps/cli/lib/bin.js web --no-open"
+CMD="dsh web --no-open --port $dsh_port"
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
@@ -29,10 +30,9 @@ start_process() {
     fi
 
     log_msg "Starting process ..."
+    nohup node ${TRIM_APPDEST}/proxy.js 2>&1 &
     cd ${TRIM_APPDEST}/server
     bash -c "${CMD}" >> ${LOG_FILE} 2>&1 &
-    sleep 2
-    nohup node ${TRIM_APPDEST}/proxy.js 2>&1 &
     printf "%s" "$!" > ${PID_FILE}
     return 0
 }
