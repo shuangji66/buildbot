@@ -67,21 +67,44 @@ const target = new URL(TARGET_URL);
 const targetHost = target.hostname;
 const targetPort = target.port || (target.protocol === 'https:' ? 443 : 80);
 
-// ---------- 前端注入：绕过 DSH 前端的 loopback 门，修复经反代访问时插件设置页空白 ----------
-// 背景：DSH 的 dsh-web-ui 前端在 Settings -> Plugins 页面，仅当页面 hostname 是
-// loopback（localhost / 127/8 / [::1]）时，连接层 connection.isLoopback 才为 true，
-// 进而 settings scope 才会以 "host" 模式读写主机设置。经本反代以非 loopback 主机名
-// （如 NAS 局域网 IP）访问时 isLoopback=false，settings scope 退化为 "memory" 模式，
-// 永远不调用 settings API，插件配置卡片静默渲染为空白。
-// 这里通过向 index.html 注入一段引导脚本，在浏览器端做两件事：
-//   1) 包装 dsh-client-connection 模块 apply()，把 connection.isLoopback 强制置为 true
-//      （在 ctx.provide 注入 connection 的那一刻改，兼有 ctx.get 兜底）；
-//   2) 包装 dsh-client-ui-settings 模块的 SettingsScopeController.prototype.enqueue，
-//      让 settings scope 即便处于 "memory" 模式也真正执行读写（等价于把 "memory"
-//      改成 "host"），保证插件设置页不再空白——这是兜底，不依赖 isLoopback 判定。
-// 仅影响前端渲染路径；后端仍走 loopback socket + Host 栅栏，安全边界不变
-// （DSH discussion #2403）。
+// ---------- 前端注入：在非安全上下文 + 非 loopback 反代场景下修复 DSH 前端 ----------
+// 背景（详见 REVERSE_PROXY_ADAPTATION.md）：
+//   3) crypto.randomUUID() 仅在 HTTPS / localhost 可用，HTTP 局域网 IP 访问会抛
+//      "randomUUID is not a function" 并使控制台报错；
+//   5) DSH "打开配置文件" 按钮调用桌面 GUI 编辑器，无头 NAS 上无法执行，需 CSS 隐藏；
+//   4) DSH 的 dsh-client-connection 模块依 location.hostname 判定 connection.isLoopback，
+//      经非 loopback 主机反代访问时 isLoopback=false，settings scope 退化为 "memory" 模式，
+//      插件配置卡片静默渲染为空白。
+// 注入脚本做三件事，全部在浏览器端，仅影响前端渲染路径；后端仍走 loopback socket +
+// Host 栅栏，安全边界不变（DSH discussion #2403）：
+//   a) Polyfill window.crypto.randomUUID（仅缺失时）；
+//   b) 包装 dsh-client-connection 的 apply()，在 ctx.provide("connection", ...) 那一刻
+//      强制把 connection.isLoopback 置为 true（附带 ctx.get 兜底）；
+//   c) 【本脚独有，Go 版未做】包装 dsh-client-ui-settings 的
+//      SettingsScopeController.prototype.enqueue，让 settings scope 即便处于 "memory"
+//      模式也真正执行读写——作为 b) 之外的最终兜底，不依赖 isLoopback 判定。
 const BOOTSTRAP_SCRIPT = `(function () {
+  // (a) crypto.randomUUID 兼容补丁：HTTP 非安全上下文下 window.crypto.randomUUID 缺失
+  var c = window.crypto;
+  if (c && typeof c.randomUUID !== "function" && typeof c.getRandomValues === "function") {
+    var getRand = c.getRandomValues.bind(c);
+    var uuid = function () {
+      var b = new Uint8Array(16);
+      getRand(b);
+      b[6] = (b[6] & 15) | 64;   // version 4
+      b[8] = (b[8] & 63) | 128;  // variant 10
+      var h = Array.from(b, function (x) { return ("0" + x.toString(16)).slice(-2); }).join("");
+      return h.slice(0, 8) + "-" + h.slice(8, 12) + "-" + h.slice(12, 16) + "-" + h.slice(16, 20) + "-" + h.slice(20);
+    };
+    var install = function (target) {
+      try {
+        Object.defineProperty(target, "randomUUID", { configurable: true, writable: true, value: uuid });
+        return typeof target.randomUUID === "function";
+      } catch (_) { return false; }
+    };
+    if (!install(c) && Object.getPrototypeOf(c)) install(Object.getPrototypeOf(c));
+  }
+
   var wrapped = false;
   function wrapLoader(loader) {
     if (wrapped || !loader || typeof loader.load !== "function") return;
@@ -91,6 +114,7 @@ const BOOTSTRAP_SCRIPT = `(function () {
       try {
         if (entry && typeof entry.id === "string" && typeof entry.factory === "function") {
           if (entry.id === "@deepseek-ai/dsh-client-connection") {
+            // (b) 强制 connection.isLoopback=true
             var connFactory = entry.factory;
             entry.factory = function (require) {
               var exports = connFactory.apply(this, arguments);
@@ -125,6 +149,7 @@ const BOOTSTRAP_SCRIPT = `(function () {
               return exports;
             };
           } else if (entry.id === "@deepseek-ai/dsh-client-ui-settings") {
+            // (c) 兜底：即便 settings scope 退化为 "memory" 也强制执行读写
             var setFactory = entry.factory;
             entry.factory = function (require) {
               var exports = setFactory.apply(this, arguments);
@@ -134,7 +159,11 @@ const BOOTSTRAP_SCRIPT = `(function () {
                   var origEnqueue = Ctl.prototype.enqueue;
                   Ctl.prototype.enqueue = function (operation) {
                     if (this.disposed) return Promise.resolve();
-                    var task = this.tail.then(async function () { if (this.disposed) return; await operation(); });
+                    var self = this;
+                    var task = this.tail.then(function () {
+                      if (self.disposed) return;
+                      return operation();
+                    });
                     this.tail = task.catch(function () {});
                     return task;
                   };
@@ -162,14 +191,22 @@ const BOOTSTRAP_SCRIPT = `(function () {
   } catch (_e) {}
 })();`;
 
-/** 在 HTML 正文的 <head> 之后注入引导脚本。 */
+/** 在 HTML <head> 之后注入：隐藏无头按钮的样式 + 引导脚本。 */
 function injectIntoHtml(body) {
+  // 隐藏无头 NAS 上无法执行的桌面级 "打开配置文件" 按钮（REVERSE_PROXY_ADAPTATION.md 问题 5）
+  const style = `<style>[data-slot="settings.action"] { display: none !important; }</style>`;
   const script = `<script>${BOOTSTRAP_SCRIPT}</script>`;
-  const head = body.indexOf('<head>');
-  if (head !== -1) {
-    return `${body.slice(0, head + 6)}${script}${body.slice(head + 6)}`;
+  const inject = style + script;
+  const lower = body.toLowerCase();
+  const idx = lower.indexOf('<head');
+  if (idx !== -1) {
+    const closeIdx = lower.indexOf('>', idx);
+    if (closeIdx !== -1) {
+      const pos = closeIdx + 1;
+      return `${body.slice(0, pos)}${inject}${body.slice(pos)}`;
+    }
   }
-  return `${script}${body}`;
+  return `${inject}${body}`;
 }
 
 // ---------- 后端可用性检查 ----------
@@ -214,6 +251,24 @@ async function waitForBackend(maxWaitMs = 10000) {
   throw new Error(`Backend ${targetHost}:${targetPort} not available after ${maxWaitMs}ms`);
 }
 
+// ---------- JS bundle 兜底改写（对齐 Go 版 rewriteJsBundle） ----------
+// 把客户端 JS 中 `connection.isLoopback ? "host" : "memory"` 静态替换为 "host"，
+// 让 settings scope 即便在运行时 hook 未及时生效时也以 host 模式读写。
+// 覆盖四种引号/空格组合，与 Go 版 bytes.ReplaceAll 列表一致。
+function rewriteJsBundle(buf) {
+  const pairs = [
+    ['connection.isLoopback ? "host" : "memory"', '"host"'],
+    [`connection.isLoopback ? 'host' : 'memory'`, `'host'`],
+    ['connection.isLoopback?"host":"memory"', '"host"'],
+    [`connection.isLoopback?'host':'memory'`, `'host'`],
+  ];
+  let s = buf.toString('utf8');
+  for (const [from, to] of pairs) {
+    if (s.indexOf(from) !== -1) s = s.split(from).join(to);
+  }
+  return Buffer.from(s, 'utf8');
+}
+
 // ---------- 代理转发逻辑 ----------
 function forwardRequest(req, res) {
   const targetReqUrl = new URL(req.url, TARGET_URL);
@@ -225,41 +280,77 @@ function forwardRequest(req, res) {
     headers: { ...req.headers }
   };
 
-  ['sec-fetch-site'].forEach(h => delete options.headers[h]);
-  options.headers.host = `${targetHost}:${targetPort}`;
-  options.headers.origin = `http://${options.headers.host}`;
-
-  // 请求上游以非压缩方式返回，方便注入脚本（DSH 自身不压缩，这里显式声明以防外部层）
-  if (options.headers['accept-encoding'] !== undefined) {
-    delete options.headers['accept-encoding'];
+  // 仅当客户端原有该标头时才改写（与 Go 版一致：避免凭空添加 Sec-Fetch-Site 触发上游严格校验）
+  if (options.headers['sec-fetch-site'] !== undefined) {
+    options.headers['sec-fetch-site'] = 'same-origin';
   }
+  options.headers.host = `${targetHost}:${targetPort}`;
+  // 仅当存在 Origin 时改写为目标同源（防止上游 CSRF 校验失败并保留特权访问能力）
+  if (options.headers.origin !== undefined) {
+    options.headers.origin = `http://${options.headers.host}`;
+  }
+
+  // 透传客户端真实信息（便于后端日志/审计），对齐 Go 版 SetXForwarded()
+  options.headers['x-forwarded-for'] = (req.socket.remoteAddress || '').replace(/^::ffff:/, '') + (options.headers['x-forwarded-for'] ? `, ${options.headers['x-forwarded-for']}` : '');
+  options.headers['x-forwarded-host'] = req.headers.host || '';
+  options.headers['x-forwarded-proto'] = (req.socket.server && req.socket.server instanceof https.Server) ? 'https' : 'http';
+
+  // 请求上游以非压缩方式返回，方便代理层注入与改写（identity 不会触发任何编码协商）
   options.headers['accept-encoding'] = 'identity';
 
   const proxyReq = http.request(options, (proxyRes) => {
     const headers = { ...proxyRes.headers };
     headers['access-control-allow-origin'] = '*';
-    const isHtml = /text\/html/i.test(headers['content-type'] || '');
-    if (isHtml && proxyRes.statusCode >= 200 && proxyRes.statusCode < 300) {
-      // 收集 HTML 正文并注入引导脚本（改动 body 后需重写 content-length）
+    const ct = (headers['content-type'] || '').toLowerCase();
+    const statusCode = proxyRes.statusCode;
+    const isHtml = ct.includes('text/html');
+    const isJs = ct.includes('javascript') || ct.includes('text/javascript');
+    const isSse = ct.startsWith('text/event-stream');
+    // 若上游/外部层无视 identity 仍压缩了，则不能注入改写（会得到乱码），直接透传
+    const enc = (headers['content-encoding'] || '').toLowerCase();
+    const encoded = enc === 'gzip' || enc === 'br' || enc === 'deflate' || enc === 'zstd';
+
+    // SSE 流式响应：禁用缓冲/缓存，删 Content-Length（与 Go 版 ModifyResponse 一致）
+    if (isSse) {
+      headers['cache-control'] = 'no-cache, no-transform';
+      headers['x-accel-buffering'] = 'no';
+      delete headers['content-length'];
+      res.writeHead(statusCode, headers);
+      proxyRes.pipe(res);
+      return;
+    }
+
+    // 压缩响应或非 2xx 的 HTML 直接透传，避免误改
+    const canInjectHtml = isHtml && statusCode >= 200 && statusCode < 300 && !encoded;
+    const canRewriteJs = isJs && statusCode >= 200 && statusCode < 300 && !encoded;
+
+    if (canInjectHtml || canRewriteJs) {
       const chunks = [];
       proxyRes.on('data', (c) => chunks.push(c));
       proxyRes.on('end', () => {
-        let body = Buffer.concat(chunks).toString('utf8');
-        if (req.method === 'GET' && req.headers['accept'] && /html/i.test(req.headers['accept'])) {
-          body = injectIntoHtml(body);
+        let body = Buffer.concat(chunks);
+        if (canInjectHtml) {
+          // 放宽注入条件：只看上游 Content-Type 是否为 text/html，不再要求客户端 accept 含 html
+          // （首屏 SSR / 浏览器预取可能不发标准 Accept，Go 版亦如此）
+          body = Buffer.from(injectIntoHtml(body.toString('utf8')), 'utf8');
+        } else if (canRewriteJs) {
+          // JS 兜底改写：把 connection.isLoopback ? "host" : "memory" 静态替换为 "host"
+          // （REVERSE_PROXY_ADAPTATION.md 问题 4 的最后一道防线，覆盖运行时 hook 来不及生效的边界）
+          body = rewriteJsBundle(body);
         }
-        const out = Buffer.from(body, 'utf8');
-        headers['content-length'] = String(out.length);
-        res.writeHead(proxyRes.statusCode, headers);
-        res.end(out);
+        headers['content-length'] = String(body.length);
+        res.writeHead(statusCode, headers);
+        res.end(body);
       });
       proxyRes.on('error', (err) => {
         console.error(`[Proxy Response Error] ${err.message}`);
-        res.writeHead(502, { 'content-type': 'text/plain' });
-        res.end('Proxy error');
+        if (!res.headersSent) {
+          res.writeHead(502, { 'content-type': 'text/plain' });
+          res.end('Proxy error');
+        }
       });
     } else {
-      res.writeHead(proxyRes.statusCode, headers);
+      res.writeHead(statusCode, headers);
       proxyRes.pipe(res);
     }
   });
