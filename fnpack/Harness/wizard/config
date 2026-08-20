@@ -4,8 +4,8 @@
     "items": [
       {
         "type": "text",
-        "field": "port",
-        "label": "端口",
+        "field": "proxy_port",
+        "label": "访问端口",
         "rules": [
           {
             "required": true,
@@ -13,7 +13,22 @@
           }
         ],
         "options": [],
+        "helpText": "实际访问端口",
         "initValue": "3079"
+      },
+      {
+        "type": "text",
+        "field": "dsh_port",
+        "label": "服务端口",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "helpText": "Deepseek Harness服务端口",
+        "initValue": "3080"
       },
       {
         "type": "select",
