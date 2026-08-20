@@ -1,30 +1,50 @@
-name: Build and pack modified dsh
+name: Build Harness with dshmarket and Release
 
 on:
   workflow_dispatch:
     inputs:
       dsh_version:
-        description: '版本号 (例如 0.1.0-rc.8，或 latest)'
+        description: 'dsh 包版本（例如 0.1.0-rc.8，或 latest）'
         required: true
-        default: '0.1.0-rc.8'
+        default:'0.1.0-rc.8'
         type: string
+      manifest_version:
+        description: 'manifest 中的版本号（例如 1.0.0）'
+        required: true
+        type: string
+      changelog:
+        description: '更新日志（支持中文）'
+        required: true
+        type: string
+      publish:
+        description: '是否发布到 Fndepot Release'
+        required: false
+        type: boolean
+        default: true
 
 jobs:
-  build:
+  # ========== 第一步：在 Debian 12 容器内构建 dsh 并生成 server.tar.gz ==========
+  build-in-container:
     strategy:
       matrix:
-        arch: [x86, arm]
         include:
-          - arch: x86
-            runner: ubuntu-latest
-          - arch: arm
-            runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
-    container:
-      image: debian:12
-
+          - os: ubuntu-24.04
+            platform: x86
+          - os: ubuntu-24.04-arm
+            platform: arm
+    runs-on: ${{ matrix.os }}
+    container: debian:12
+    outputs:
+      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
+      changelog: ${{ steps.set_vars.outputs.changelog }}
     steps:
-      - name: Install system dependencies & Node.js 24
+      - name: 设置项目变量
+        id: set_vars
+        run: |
+          echo "manifest_version=${{ github.event.inputs.manifest_version }}" >> $GITHUB_OUTPUT
+          echo "changelog=${{ github.event.inputs.changelog }}" >> $GITHUB_OUTPUT
+
+      - name: 安装系统依赖和 Node.js 24
         run: |
           apt-get update
           apt-get install -y curl tar jq xz-utils
@@ -33,37 +53,39 @@ jobs:
           node -v
           npm -v
 
-      - name: Pack @deepseek-ai/dsh
+      - name: 打包 @deepseek-ai/dsh 并修改 package.json
         id: pack
         run: |
-          VERSION="${{ inputs.dsh_version }}"
+          VERSION="${{ github.event.inputs.dsh_version }}"
+          if [ "$VERSION" = "latest" ]; then
+            VERSION=$(npm view @deepseek-ai/dsh version)
+          fi
           PACKED=$(npm pack "@deepseek-ai/dsh@$VERSION")
           echo "PACKED=$PACKED" >> $GITHUB_ENV
           tar xzf "$PACKED"
 
-      - name: Modify package.json – add dshmarket dependency
+      - name: 添加 dshmarket 依赖
         run: |
           cd package
           jq '.dependencies = (.dependencies // {} | . + {"dshmarket": "latest"})' package.json > tmp.json
           mv tmp.json package.json
           cat package.json
 
-      - name: Repack modified tarball
-        run: |
-          tar czf "$PACKED" package
+      - name: 重新打包
+        run: tar czf "$PACKED" package
 
-      - name: Install modified package into /var/apps/Harness/target/server
+      - name: 安装修改后的包到 /var/apps/Harness/target/server
         run: |
           mkdir -p /var/apps/Harness/target/server
           cd /var/apps/Harness/target/server
           npm init -y
           npm install "$GITHUB_WORKSPACE/$PACKED"
 
-      - name: Modify PROFILE_TEMPLATES.web array in dsh-app-boot
+      - name: 修改 dsh-app-boot 中的 PROFILE_TEMPLATES.web 数组
         run: |
           FILE="/var/apps/Harness/target/server/node_modules/@deepseek-ai/dsh-app-boot/lib/index.js"
           if [ ! -f "$FILE" ]; then
-            echo "Warning: $FILE not found, skipping modification"
+            echo "警告：$FILE 不存在，跳过修改"
             exit 0
           fi
 
@@ -72,15 +94,13 @@ jobs:
             const file = process.argv[1];
             let content = fs.readFileSync(file, 'utf8');
 
-            // 查找 PROFILE_TEMPLATES = { 的位置
             const varName = 'PROFILE_TEMPLATES';
             const assignIndex = content.indexOf(varName + ' = {');
             if (assignIndex === -1) {
-              console.error('Could not find PROFILE_TEMPLATES definition');
+              console.error('未找到 PROFILE_TEMPLATES 定义');
               process.exit(1);
             }
 
-            // 从该位置开始，计数大括号找到匹配的 }
             let braceCount = 0;
             let start = assignIndex + content.substring(assignIndex).indexOf('{');
             let end = start;
@@ -95,51 +115,220 @@ jobs:
               }
             }
             if (braceCount !== 0) {
-              console.error('Unbalanced braces in PROFILE_TEMPLATES definition');
+              console.error('PROFILE_TEMPLATES 大括号不匹配');
               process.exit(1);
             }
 
             const fullMatch = content.substring(start, end + 1);
-            // 在匹配块内查找 web: [ ... ]
             const webRegex = /web\\s*:\\s*\\[([^\\]]*)\\]/;
             const webMatch = fullMatch.match(webRegex);
             if (!webMatch) {
-              console.error('Could not find web array in PROFILE_TEMPLATES');
+              console.error('未找到 PROFILE_TEMPLATES 中的 web 数组');
               process.exit(1);
             }
 
-            const originalArray = webMatch[1];
-            // 解析已有项（去除多余空白）
-            let items = originalArray.split(',').map(s => s.trim()).filter(s => s.length > 0);
+            let items = webMatch[1].split(',').map(s => s.trim()).filter(s => s.length > 0);
             if (items.includes('\"dshmarket\"')) {
-              console.log('dshmarket already in web array, skipping');
+              console.log('dshmarket 已在 web 数组中，跳过');
             } else {
-              // 追加
               items.push('\"dshmarket\"');
               const newArrayStr = items.join(', ');
               const newFullMatch = fullMatch.replace(webRegex, 'web: [' + newArrayStr + ']');
-              // 替换原内容
               content = content.substring(0, start) + newFullMatch + content.substring(end + 1);
               fs.writeFileSync(file, content);
-              console.log('Successfully added dshmarket to PROFILE_TEMPLATES.web');
+              console.log('已成功将 dshmarket 添加到 PROFILE_TEMPLATES.web');
             }
 
-            // 显示修改后的定义（验证）
             const snippet = content.substring(
               Math.max(0, assignIndex - 20),
               Math.min(content.length, assignIndex + 300)
             );
-            console.log('--- Snippet around definition ---');
+            console.log('--- 定义附近片段 ---');
             console.log(snippet);
           " "$FILE"
 
-      - name: Compress server directory
+      - name: 压缩 server 目录
         run: |
-          tar czf "$GITHUB_WORKSPACE/server-${{ matrix.arch }}.tar.gz" \
+          tar czf "$GITHUB_WORKSPACE/server-${{ matrix.platform }}.tar.gz" \
             -C /var/apps/Harness/target server
 
-      - name: Upload server artifact
+      - name: 上传 server.tar.gz 作为 Artifact
         uses: actions/upload-artifact@v7
         with:
-          name: server-${{ matrix.arch }}
-          path: server-${{ matrix.arch }}.tar.gz
+          name: server-${{ matrix.platform }}
+          path: server-${{ matrix.platform }}.tar.gz
+          if-no-files-found: error
+
+  # ========== 第二步：在宿主机（容器外）使用 fnpack 打包 ==========
+  package:
+    name: 打包 fpk
+    needs: build-in-container
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: x86
+          - os: ubuntu-24.04-arm
+            platform: arm
+    outputs:
+      app_name: ${{ steps.set_vars.outputs.app_name }}
+      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
+      changelog: ${{ steps.set_vars.outputs.changelog }}
+    steps:
+      - name: 设置项目变量（从 build-in-container 继承）
+        id: set_vars
+        run: |
+          echo "app_name=Harness" >> $GITHUB_OUTPUT
+          echo "manifest_version=${{ needs.build-in-container.outputs.manifest_version }}" >> $GITHUB_OUTPUT
+          echo "changelog=${{ needs.build-in-container.outputs.changelog }}" >> $GITHUB_OUTPUT
+
+      - name: 下载对应架构的 server.tar.gz
+        uses: actions/download-artifact@v7
+        with:
+          name: server-${{ matrix.platform }}
+          path: ./server_artifact
+
+      - name: 检出 buildbot 仓库（包含 fnpack 模板）
+        uses: actions/checkout@v7
+        with:
+          path: buildbot_repo
+
+      - name: 准备 fnpack 工作区
+        run: |
+          mkdir -p build_workspace
+          cp -r "buildbot_repo/fnpack/${{ needs.build-in-container.outputs.app_name || 'Harness' }}" build_workspace/
+          if [ "${{ matrix.platform }}" = "x86" ]; then
+            FNPACK_BIN="fnpack-1.2.1-linux-amd64"
+          else
+            FNPACK_BIN="fnpack-1.2.1-linux-arm64"
+          fi
+          cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
+          chmod +x build_workspace/fnpack
+
+      - name: 复制 server.tar.gz 到 app 目录
+        run: |
+          mkdir -p build_workspace/Harness/app
+          cp ./server_artifact/server-${{ matrix.platform }}.tar.gz build_workspace/Harness/app/server.tar.gz
+
+      - name: 修改 manifest 文件
+        run: |
+          APP_NAME="Harness"
+          MANIFEST_PATH="build_workspace/$APP_NAME/manifest"
+          if [ ! -f "$MANIFEST_PATH" ]; then
+            echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
+            exit 1
+          fi
+          MANIFEST_VERSION="${{ needs.build-in-container.outputs.manifest_version }}"
+          CHANGELOG="${{ needs.build-in-container.outputs.changelog }}"
+          ESCAPED_CHANGELOG=$(printf '%s' "$CHANGELOG" | jq -sRr @json)
+          sed -i "s/\${VERSION}/$MANIFEST_VERSION/g" "$MANIFEST_PATH"
+          sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
+          sed -i "s/\${PLATFORM}/${{ matrix.platform }}/g" "$MANIFEST_PATH"
+          echo "manifest 修改后的内容："
+          cat "$MANIFEST_PATH"
+
+      - name: 执行 fnpack 打包
+        run: |
+          cd build_workspace
+          ./fnpack build Harness
+          FPK_FILE=$(ls *.fpk | head -n 1)
+          if [ -z "$FPK_FILE" ]; then
+            echo "错误：未找到生成的 fpk 文件"
+            exit 1
+          fi
+          FINAL_NAME="Harness-${{ needs.build-in-container.outputs.manifest_version }}-${{ matrix.platform }}.fpk"
+          mv "$FPK_FILE" "$FINAL_NAME"
+          echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
+          echo "打包完成，生成文件：$FINAL_NAME"
+          ls -la *.fpk
+
+      - name: 上传 fpk 文件作为 Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: fpk-${{ matrix.platform }}
+          path: build_workspace/*.fpk
+          if-no-files-found: error
+
+  # ========== 第三步：发布到 Fndepot ==========
+  publish:
+    name: 发布到 Fndepot Release
+    needs: package
+    if: always() && needs.package.result == 'success' && github.event.inputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: 下载所有架构的 fpk 文件
+        uses: actions/download-artifact@v7
+        with:
+          path: fpk_files
+          merge-multiple: true
+
+      - name: 生成当前日期 tag（格式 年.月.日）
+        id: date_tag
+        run: |
+          TAG=$(date +'%Y.%-m.%-d')
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "RELEASE_TITLE=【$TAG 更新】" >> $GITHUB_OUTPUT
+
+      - name: 使用 GitHub CLI 发布到 shuangji66/Fndepot
+        env:
+          GH_TOKEN: ${{ secrets.BUILDBOT }}
+        run: |
+          REPO="shuangji66/Fndepot"
+          TAG="${{ steps.date_tag.outputs.tag }}"
+          TITLE="${{ steps.date_tag.outputs.RELEASE_TITLE }}"
+          MANIFEST_VERSION="${{ needs.package.outputs.manifest_version }}"
+          CHANGELOG="${{ needs.package.outputs.changelog }}"
+          NEW_NOTE="构建 ${{ needs.package.outputs.app_name }} 版本 ${MANIFEST_VERSION}。更新日志：${CHANGELOG}"
+
+          if gh release view "$TAG" --repo "$REPO" &>/dev/null; then
+            echo "Release $TAG 已存在，将添加资产并追加描述"
+            CURRENT_BODY=$(gh release view "$TAG" --repo "$REPO" --json body -q .body)
+            if [ -n "$CURRENT_BODY" ]; then
+              NEW_BODY="${CURRENT_BODY}"$'\n'"$NEW_NOTE"
+            else
+              NEW_BODY="$NEW_NOTE"
+            fi
+            gh release edit "$TAG" --repo "$REPO" --notes "$NEW_BODY"
+          else
+            gh release create "$TAG" --repo "$REPO" --title "$TITLE" --notes "$NEW_NOTE"
+          fi
+
+          for fpk in fpk_files/*.fpk; do
+            echo "上传 $fpk"
+            gh release upload "$TAG" "$fpk" --repo "$REPO" --clobber
+          done
+
+      - name: 更新 fnpack.json 中的 Harness 条目
+        env:
+          GH_TOKEN: ${{ secrets.BUILDBOT }}
+        run: |
+          REPO="shuangji66/Fndepot"
+          TAG="${{ steps.date_tag.outputs.tag }}"
+          APP_NAME="${{ needs.package.outputs.app_name }}"
+          MANIFEST_VERSION="${{ needs.package.outputs.manifest_version }}"
+          CHANGELOG="${{ needs.package.outputs.changelog }}"
+
+          DOWNLOAD_URL_X86="https://github.com/${REPO}/releases/download/${TAG}/${APP_NAME}-${MANIFEST_VERSION}-x86.fpk"
+          DOWNLOAD_URL_ARM="https://github.com/${REPO}/releases/download/${TAG}/${APP_NAME}-${MANIFEST_VERSION}-arm.fpk"
+
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" fndepot_repo
+          cd fndepot_repo
+
+          jq --arg app "$APP_NAME" \
+             --arg version "$MANIFEST_VERSION" \
+             --arg changelog "$CHANGELOG" \
+             --arg url_x86 "$DOWNLOAD_URL_X86" \
+             --arg url_arm "$DOWNLOAD_URL_ARM" \
+             '.[$app].version = $version |
+              .[$app].changelog = $changelog |
+              .[$app].arch_diff.x86.download_url = $url_x86 |
+              .[$app].arch_diff.arm.download_url = $url_arm' \
+             fnpack.json > fnpack.json.tmp
+          mv fnpack.json.tmp fnpack.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add fnpack.json
+          git commit -m "chore: update ${APP_NAME} to ${MANIFEST_VERSION} (${TAG})"
+          git push
