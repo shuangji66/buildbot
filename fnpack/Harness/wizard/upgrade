@@ -17,21 +17,43 @@
       },
       {
         "type": "select",
-        "field": "proxy_https",
-        "label": "访问方式",
+        "field": "auth_mode",
+        "label": "登录鉴权",
         "rules": [],
         "options": [
           {
-            "label": "反向代理",
-            "value": "false"
+            "label": "开启",
+            "value": "true"
           },
           {
-            "label": "https自签名",
-            "value": "true"
+            "label": "关闭",
+            "value": "false"
           }
         ],
-        "helpText": "自签名证书访问时请忽略不安全链接",
-        "initValue": "false"
+        "helpText": "前端已支持局域网http访问。推荐开启登录鉴权，亦可自行反代添加登录鉴权。",
+        "initValue": "true"
+      },
+      {
+        "type": "password",
+        "field": "password",
+        "label": "登录密码",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          },
+          {
+            "len": 8,
+            "message": ""
+          },
+          {
+            "pattern": "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[!@#$%^&*()_+{}|:\"<>?~,.;'\\[\\]/=-]).{8,}$",
+            "message": "包含字母、数字和标点"
+          }
+        ],
+        "options": [],
+        "helpText": "",
+        "initValue": ""
       },
       {
         "type": "select",
