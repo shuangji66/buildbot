@@ -10,5 +10,9 @@
         }
       }
     ]
-  }
+  },
+  "api-scope": [
+    "trim.file.userAccess",
+    "trim.file.userAcl"
+  ]
 }
