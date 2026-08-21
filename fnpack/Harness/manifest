@@ -1,7 +1,7 @@
 appname=Harness
 version=${VERSION}
 display_name=Harness
-desc="""<p>🐋DeepSeek Harness懒人包，支持局域网http访问，内置插件市场。</p><p>⭐使用说明：建议反代后开启登录鉴权或局域网本地访问。默认工作区目录为“应用文件/Harness”，修改路径需在应用设置添加读写权限。插件损坏、环境错误或运行故障可尝试删除.dsh目录后重启。插件功能问题可让dsh尝试自我修复。</p>"""
+desc="""<p>🐋DeepSeek Harness懒人包，支持面板控制，自带应用用户终端，支持授权飞牛目录，支持局域网http访问，内置插件市场。</p><p>⭐使用说明：建议反代后开启登录鉴权或局域网本地访问。插件损坏、环境错误或运行故障可尝试删除.dsh目录后重启。插件功能问题可让dsh尝试自我修复。</p>"""
 platform=${PLATFORM}
 source=thirdparty
 maintainer=DeepSeek
@@ -14,4 +14,5 @@ desktop_uidir=ui
 desktop_applaunchname=Harness.Application
 checkport=false
 disable_authorization_path=false
+micro_app=true
 changelog=${CHANGELOG}
