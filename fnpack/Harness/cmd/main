@@ -11,7 +11,7 @@ export HARNESS_PID_FILE="${TRIM_PKGVAR}/harness.pid"
 LOG_FILE="${TRIM_DATA_SHARE_PATHS%%:*}/info.log"
 PID_FILE="${TRIM_PKGVAR}/harness.pid"
 
-CMD="${TRIM_APPDEST}/harness"
+CMD="${TRIM_APPDEST}/bin/harness"
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
