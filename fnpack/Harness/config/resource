@@ -13,6 +13,7 @@
   },
   "api-scope": [
     "trim.file.userAccess",
-    "trim.file.userAcl"
+    "trim.file.userAcl",
+    "trim.file.path"
   ]
 }
