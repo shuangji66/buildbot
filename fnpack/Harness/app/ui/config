@@ -8,12 +8,28 @@
         "accessPerm": "editable"
       },
       "protocol": "",
+      "gatewayPrefix": "/app/Harness",
+      "gatewaySocket": "app.sock",
+      "title": "Harness控制台",
+      "icon": "images/icon_{0}.png",
+      "type": "iframe",
+      "port": "",
+      "url": "/app/Harness"
+    },
+    "Harness.dsh": {
+      "noDisplay": false,
+      "allUsers": false,
+      "fileTypes": [],
+      "control": {
+        "accessPerm": "editable"
+      },
+      "protocol": "",
       "gatewayPrefix": "",
       "gatewaySocket": "",
       "title": "Harness",
-      "icon": "images/icon_{0}.png",
+      "icon": "images/dsh_{0}.png",
       "type": "iframe",
-      "port": "${proxy_port}",
+      "port": "${port}",
       "url": ""
     }
   }
