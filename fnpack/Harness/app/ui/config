@@ -1,6 +1,6 @@
 {
   ".url": {
-    "Harness.Application": {
+    "Harness.control": {
       "noDisplay": false,
       "allUsers": false,
       "fileTypes": [],
@@ -26,7 +26,7 @@
       "protocol": "",
       "gatewayPrefix": "",
       "gatewaySocket": "",
-      "title": "Harness",
+      "title": "DeepSeek Harness",
       "icon": "images/dsh_{0}.png",
       "type": "iframe",
       "port": "${port}",
