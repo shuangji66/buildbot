@@ -6,10 +6,10 @@ on:
       dsh_version:
         description: 'dsh 包版本（例如 0.1.0-rc.8，或 latest）'
         required: true
-        default: '0.1.0-rc.8'
+        default: '0.1.1-rc.2'
         type: string
       manifest_version:
-        description: 'manifest 中的版本号（例如 1.0.0）'
+        description: 'manifest 中的版本号（例如 0.1.1）'
         required: true
         type: string
       changelog:
@@ -23,7 +23,53 @@ on:
         default: true
 
 jobs:
-  # ========== 第一步：在 Debian 12 容器内构建 dsh 并生成 server.tar.gz ==========
+  # ========== 第一步：构建 harness 二进制（来自 shuangji66/dsh） ==========
+  build-harness:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - name: 检出 shuangji66/dsh 仓库
+        uses: actions/checkout@v7
+        with:
+          repository: shuangji66/dsh
+          path: dsh-src
+
+      - name: 安装 Node.js 24
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: 安装 Go 1.26
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.26'
+
+      - name: 构建前端
+        working-directory: ./dsh-src/frontend
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+
+      - name: 准备 embed 目录
+        run: |
+          mkdir -p ./dsh-src/backend/embed
+          cp -r ./dsh-src/frontend/dist/* ./dsh-src/backend/embed/
+
+      - name: 构建 Go 二进制（${{ matrix.arch }}）
+        working-directory: ./dsh-src/backend
+        run: |
+          GOOS=linux GOARCH=${{ matrix.arch }} CGO_ENABLED=0 \
+            go build -trimpath -ldflags="-s -w" -o harness-${{ matrix.arch }} .
+
+      - name: 上传 artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: harness-${{ matrix.arch }}
+          path: ./dsh-src/backend/harness-${{ matrix.arch }}
+
+  # ========== 第二步：在 Debian 12 容器内构建 dsh 并生成 server.tar.gz ==========
   build-in-container:
     strategy:
       matrix:
@@ -159,10 +205,10 @@ jobs:
           path: server-${{ matrix.platform }}.tar.gz
           if-no-files-found: error
 
-  # ========== 第二步：在宿主机（容器外）使用 fnpack 打包 ==========
+  # ========== 第三步：在宿主机（容器外）使用 fnpack 打包 ==========
   package:
     name: 打包 fpk
-    needs: build-in-container
+    needs: [build-harness, build-in-container]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -183,11 +229,26 @@ jobs:
           echo "manifest_version=${{ needs.build-in-container.outputs.manifest_version }}" >> $GITHUB_OUTPUT
           echo "changelog=${{ needs.build-in-container.outputs.changelog }}" >> $GITHUB_OUTPUT
 
+      - name: 映射平台到架构
+        id: map_arch
+        run: |
+          if [ "${{ matrix.platform }}" = "x86" ]; then
+            echo "arch=amd64" >> $GITHUB_OUTPUT
+          else
+            echo "arch=arm64" >> $GITHUB_OUTPUT
+          fi
+
       - name: 下载对应架构的 server.tar.gz
         uses: actions/download-artifact@v7
         with:
           name: server-${{ matrix.platform }}
           path: ./server_artifact
+
+      - name: 下载对应架构的 harness 二进制
+        uses: actions/download-artifact@v7
+        with:
+          name: harness-${{ steps.map_arch.outputs.arch }}
+          path: ./harness_artifact
 
       - name: 检出 buildbot 仓库（包含 fnpack 模板）
         uses: actions/checkout@v7
@@ -197,7 +258,7 @@ jobs:
       - name: 准备 fnpack 工作区
         run: |
           mkdir -p build_workspace
-          cp -r "buildbot_repo/fnpack/${{ needs.build-in-container.outputs.app_name || 'Harness' }}" build_workspace/
+          cp -r "buildbot_repo/fnpack/Harness" build_workspace/
           if [ "${{ matrix.platform }}" = "x86" ]; then
             FNPACK_BIN="fnpack-1.2.1-linux-amd64"
           else
@@ -206,10 +267,15 @@ jobs:
           cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
           chmod +x build_workspace/fnpack
 
-      - name: 复制 server.tar.gz 到 app 目录
+      - name: 组装 app 目录
         run: |
-          mkdir -p build_workspace/Harness/app
+          mkdir -p build_workspace/Harness/app/bin
+          # 复制 server.tar.gz
           cp ./server_artifact/server-${{ matrix.platform }}.tar.gz build_workspace/Harness/app/server.tar.gz
+          # 复制并重命名 harness
+          cp ./harness_artifact/harness-${{ steps.map_arch.outputs.arch }} build_workspace/Harness/app/bin/harness
+          chmod +x build_workspace/Harness/app/bin/harness
+          ls -la build_workspace/Harness/app/
 
       - name: 修改 manifest 文件
         run: |
@@ -250,7 +316,7 @@ jobs:
           path: build_workspace/*.fpk
           if-no-files-found: error
 
-  # ========== 第三步：发布到 Fndepot ==========
+  # ========== 第四步：发布到 Fndepot ==========
   publish:
     name: 发布到 Fndepot Release
     needs: package
