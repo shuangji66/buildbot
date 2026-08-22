@@ -4,7 +4,7 @@
     "items": [
       {
         "type": "text",
-        "field": "proxy_port",
+        "field": "port",
         "label": "访问端口",
         "rules": [
           {
@@ -13,89 +13,8 @@
           }
         ],
         "options": [],
-        "helpText": "实际访问端口",
+        "helpText": "支持http访问，外网访问建议反代并开启鉴权",
         "initValue": "3079"
-      },
-      {
-        "type": "text",
-        "field": "dsh_port",
-        "label": "服务端口",
-        "rules": [
-          {
-            "required": true,
-            "message": "请输入内容"
-          }
-        ],
-        "options": [],
-        "helpText": "Deepseek Harness服务端口",
-        "initValue": "3080"
-      },
-      {
-        "type": "select",
-        "field": "auth_mode",
-        "label": "登录鉴权",
-        "rules": [],
-        "options": [
-          {
-            "label": "开启",
-            "value": "true"
-          },
-          {
-            "label": "关闭",
-            "value": "false"
-          }
-        ],
-        "helpText": "前端已支持局域网http访问。推荐开启登录鉴权，亦可自行反代添加登录鉴权。",
-        "initValue": "true"
-      },
-      {
-        "type": "password",
-        "field": "password",
-        "label": "登录密码",
-        "rules": [
-          {
-            "required": true,
-            "message": "请输入内容"
-          },
-          {
-            "min": 8,
-            "max": 72,
-            "message": "至少8位"
-          },
-          {
-            "pattern": "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[\\-.,:_/@%^=+~])[A-Za-z0-9\\-.,:_/@%^=+~]+$",
-            "message": "包含字母、数字和英文标点"
-          }
-        ],
-        "options": [],
-        "helpText": "",
-        "initValue": ""
-      },
-      {
-        "type": "select",
-        "field": "proxy_mode",
-        "label": "开启代理",
-        "rules": [],
-        "options": [
-          {
-            "label": "否",
-            "value": "0"
-          },
-          {
-            "label": "是",
-            "value": "1"
-          }
-        ],
-        "helpText": "操作git等工具网络超时时，可为Harness添加代理",
-        "initValue": "0"
-      },
-      {
-        "type": "text",
-        "field": "proxy_addr",
-        "label": "代理地址",
-        "rules": [],
-        "options": [],
-        "initValue": "http://127.0.0.1:7890"
       }
     ]
   }
