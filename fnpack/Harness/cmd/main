@@ -4,7 +4,7 @@ export PATH=${TRIM_APPDEST}/server/node_modules/.bin:$PATH
 export HOME="${TRIM_DATA_SHARE_PATHS%%:*}"
 export PNPM_HOME="${TRIM_PKGVAR}/pnpm"
 export HARNESS_ADMIN_SOCK="${TRIM_APPDEST}/app.sock"
-export HARNESS_ADMIN_BASEURL="/app/Harness-test"
+export HARNESS_ADMIN_BASEURL="/app/Harness"
 export PROXY_PORT="$port"
 export HARNESS_PID_FILE="${TRIM_PKGVAR}/harness.pid"
 
