@@ -129,7 +129,8 @@ jobs:
 
       - name: 修改 dsh-app-boot 中的 PROFILE_TEMPLATES.web 数组
         run: |
-          FILE="/var/apps/Harness/target/server/node_modules/@deepseek-ai/dsh-app-boot/lib/index.js"
+          # FILE="/var/apps/Harness/target/server/node_modules/@deepseek-ai/dsh-app-boot/lib/index.js"
+          FILE="/var/apps/Harness/target/server/lib/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-app-boot/lib/index.js"
           if [ ! -f "$FILE" ]; then
             echo "警告：$FILE 不存在，跳过修改"
             exit 0
