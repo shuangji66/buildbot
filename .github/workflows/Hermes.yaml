@@ -16,6 +16,16 @@ on:
         required: false
         type: boolean
         default: true
+      hermes_agent_version:
+        description: 'hermes-agent 的 npm 版本号（例如 0.20.5，或 latest）'
+        required: false
+        type: string
+        default: 'latest'
+      hermes_web_ui_version:
+        description: 'hermes-web-ui 的 npm 版本号（例如 0.6.46，或 latest）'
+        required: false
+        type: string
+        default: 'latest'
 
 jobs:
   # 第一步：在 Debian 12 容器中安装 hermes 并压缩 server 目录
@@ -54,7 +64,11 @@ jobs:
       - name: 创建目标目录并全局安装 hermes-agent 和 hermes-web-ui
         run: |
           mkdir -p /var/apps/Hermes/target/server
-          npm install -g hermes-agent hermes-web-ui --prefix /var/apps/Hermes/target/server
+          AGENT_VERSION="${{ github.event.inputs.hermes_agent_version }}"
+          UI_VERSION="${{ github.event.inputs.hermes_web_ui_version }}"
+          if [ "$AGENT_VERSION" = "latest" ]; then AGENT_PKG="hermes-agent"; else AGENT_PKG="hermes-agent@$AGENT_VERSION"; fi
+          if [ "$UI_VERSION" = "latest" ]; then UI_PKG="hermes-web-ui"; else UI_PKG="hermes-web-ui@$UI_VERSION"; fi
+          npm install $AGENT_PKG $UI_PKG --prefix /var/apps/Hermes/target/server
 
       - name: 压缩 server 目录为 server.tar.gz
         run: |
