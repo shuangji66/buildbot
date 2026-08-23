@@ -3,13 +3,6 @@ name: Build Aria2-next
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ matrix.arch }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   build:
     name: Linux ${{ matrix.label }}
