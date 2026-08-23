@@ -125,7 +125,7 @@ jobs:
           mkdir -p /var/apps/Harness/target/server
           cd /var/apps/Harness/target/server
           npm init -y
-          npm install "$GITHUB_WORKSPACE/$PACKED"
+          npm install -g "$GITHUB_WORKSPACE/$PACKED" --prefix /var/apps/Harness/target/server
 
       - name: 修改 dsh-app-boot 中的 PROFILE_TEMPLATES.web 数组
         run: |
