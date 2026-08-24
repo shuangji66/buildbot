@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       dsh_version:
-        description: 'dsh 包版本（例如 0.1.0-rc.8，或 latest）'
+        description: 'dsh 包版本（例如 0.1.1-rc.2，或 latest）'
         required: true
         default: '0.1.1-rc.2'
         type: string
@@ -113,7 +113,7 @@ jobs:
       - name: 添加 dshmarket 依赖
         run: |
           cd package
-          jq '.dependencies = (.dependencies // {} | . + {"dshmarket": "latest", "node-pty": "latest"})' package.json > tmp.json
+          jq '.dependencies = (.dependencies // {} | . + {"dshmarket": "latest"})' package.json > tmp.json
           mv tmp.json package.json
           cat package.json
 
@@ -125,7 +125,7 @@ jobs:
           mkdir -p /var/apps/Harness/target/server
           cd /var/apps/Harness/target/server
           npm init -y
-          npm install -g "$GITHUB_WORKSPACE/$PACKED" --prefix /var/apps/Harness/target/server
+          npm install "$GITHUB_WORKSPACE/$PACKED" --prefix /var/apps/Harness/target/server
 
       - name: 修改 dsh-app-boot 中的 PROFILE_TEMPLATES.web 数组
         run: |
