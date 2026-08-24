@@ -1,7 +1,7 @@
 #!/bin/bash
 export PATH=/var/apps/nodejs_v24/target/bin:$PATH
 export PATH=${TRIM_PKGVAR}/pnpm:$PATH
-export PATH=${TRIM_APPDEST}/server/bin:$PATH
+export PATH=${TRIM_APPDEST}/server/node_modules/.bin:$PATH
 export HOME="${TRIM_DATA_SHARE_PATHS%%:*}"
 export PNPM_HOME="${TRIM_PKGVAR}/pnpm"
 export HARNESS_ADMIN_SOCK="${TRIM_APPDEST}/app.sock"
@@ -10,7 +10,7 @@ export PROXY_PORT="$port"
 export HARNESS_PID_FILE="${TRIM_PKGVAR}/harness.pid"
 export HARNESS_LOG_FILE="${TRIM_PKGVAR}/harness.log"
 
-LOG_FILE="${TRIM_DATA_SHARE_PATHS%%:*}/info.log"
+LOG_FILE="${TRIM_PKGVAR}/info.log"
 PID_FILE="${TRIM_PKGVAR}/harness.pid"
 
 CMD="${TRIM_APPDEST}/bin/harness"
