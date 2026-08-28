@@ -128,7 +128,6 @@ jobs:
           # ----- 编译 libtorrent（需要 Boost 头文件）-----
           tar xf boost.tar.gz
           tar xf libtorrent.tar.gz && cd "libtorrent-rasterbar-$LIBTORRENT_VERSION"
-          # 使用 cmake 直接构建静态库
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE="$CMAKE_BUILD_TYPE" \
             -DCMAKE_CXX_STANDARD=17 \
@@ -137,7 +136,7 @@ jobs:
             -DCMAKE_C_FLAGS="$RELEASE_CFLAGS" \
             -DCMAKE_EXE_LINKER_FLAGS="$RELEASE_LDFLAGS" \
             -DBUILD_SHARED_LIBS=OFF \
-            -DBoost_INCLUDE_DIR="$repo_root/boost_1_${BOOST_VERSION//./_}" \
+            -DBoost_INCLUDE_DIR="$repo_root/boost_1_83_0" \
             -DCMAKE_PREFIX_PATH="$deps_prefix"
           cmake --build build -j"$jobs" --target install
           cd "$repo_root"
