@@ -58,6 +58,7 @@ jobs:
       - name: Build and package aria2-next (release)
         run: |
           set -eu
+          shell: bash
           cd "$GITHUB_WORKSPACE"
           repo_root="$PWD"
           jobs="${NPROC:-$(nproc)}"
