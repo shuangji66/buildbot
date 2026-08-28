@@ -83,11 +83,9 @@ jobs:
           mkdir -p "$deps_prefix"
 
           # ----- 编译 zlib -----
-          # ----- 编译 zlib (使用更保守的 CFLAGS) -----
           tar xf zlib.tar.gz && cd "zlib-$ZLIB_VERSION"
-          # 移除 RELEASE_CFLAGS，避免不兼容的选项导致检查失败
           CPPFLAGS="$RELEASE_CPPFLAGS" CFLAGS="-O2" LDFLAGS="$RELEASE_LDFLAGS" \
-            ./configure --prefix="$deps_prefix" --static
+            ./configure --prefix="$deps_prefix" --static --without-gcc-warnings
           make -j"$jobs" && make install
           cd "$repo_root"
 
