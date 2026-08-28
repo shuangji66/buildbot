@@ -52,7 +52,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
-            make binutils cmake ninja-build pkg-config curl tar ca-certificates \
+            build-essential make binutils cmake ninja-build pkg-config curl tar ca-certificates \
             libssl-dev perl file
 
       - name: Build and package aria2-next (release)
@@ -89,7 +89,8 @@ jobs:
             -DCMAKE_BUILD_TYPE="$CMAKE_BUILD_TYPE" \
             -DCMAKE_INSTALL_PREFIX="$deps_prefix" \
             -DCMAKE_C_FLAGS="-O2" \
-            -DBUILD_SHARED_LIBS=OFF
+            -DBUILD_SHARED_LIBS=OFF \
+            -DCMAKE_C_COMPILER=gcc
           cmake --build build -j"$jobs" --target install
           cd "$repo_root"
 
