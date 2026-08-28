@@ -59,6 +59,15 @@ jobs:
         shell: bash
         run: |
           set -eu
+          
+          # 升级 CMake 到 3.25+（aria2-next 要求）
+          CMAKE_VERSION=3.25.2
+          curl -fsSL https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz -o /tmp/cmake.tar.gz
+          tar -xzf /tmp/cmake.tar.gz -C /opt
+          export PATH="/opt/cmake-${CMAKE_VERSION}-linux-x86_64/bin:$PATH"
+          rm /tmp/cmake.tar.gz
+          cmake --version  # 验证版本
+         
           cd "$GITHUB_WORKSPACE"
           repo_root="$PWD"
           jobs="${NPROC:-$(nproc)}"
