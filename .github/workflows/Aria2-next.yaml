@@ -56,9 +56,9 @@ jobs:
             libssl-dev perl file
 
       - name: Build and package aria2-next (release)
+        shell: bash
         run: |
           set -eu
-          shell: bash
           cd "$GITHUB_WORKSPACE"
           repo_root="$PWD"
           jobs="${NPROC:-$(nproc)}"
