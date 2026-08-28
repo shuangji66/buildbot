@@ -84,8 +84,8 @@ jobs:
 
           # ----- 编译 zlib -----
           tar xf zlib.tar.gz && cd "zlib-$ZLIB_VERSION"
-          # 移除 configure 中的 -Werror，避免因警告导致测试失败
-          sed -i 's/-Werror//g' configure
+          # 将 configure 中的 -Werror 改为 -Wno-error，避免因警告导致测试失败
+          sed -i 's/-Werror/-Wno-error/g' configure
           CPPFLAGS="$RELEASE_CPPFLAGS" CFLAGS="-O2" LDFLAGS="$RELEASE_LDFLAGS" \
             ./configure --prefix="$deps_prefix" --static
           make -j"$jobs" && make install
