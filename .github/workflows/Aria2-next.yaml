@@ -151,6 +151,7 @@ jobs:
           cd "$repo_root"
 
           # ----- 配置并编译 aria2-next -----
+          # ----- 配置并编译 aria2-next -----
           PKG_CONFIG_PATH="$deps_prefix/lib/pkgconfig" \
           cmake -S . -B build/release -G Ninja \
             -DCMAKE_BUILD_TYPE="$CMAKE_BUILD_TYPE" \
@@ -169,14 +170,24 @@ jobs:
             -DPKG_CONFIG_EXECUTABLE="$(command -v pkg-config)" \
             -DCMAKE_INSTALL_PREFIX="$PREFIX_PATH"
 
-          cmake --build build/release --target aria2-next -j"$jobs"
-          strip build/release/aria2-next
+          # 构建所有默认目标（不指定 --target）
+          cmake --build build/release -j"$jobs"
+
+          # 安装到 PREFIX_PATH
           cmake --install build/release
+
+          # 去调试符号（strip）
+          if [ -f "$PREFIX_PATH/bin/aria2c" ]; then
+            strip "$PREFIX_PATH/bin/aria2c"
+          elif [ -f "$PREFIX_PATH/bin/aria2" ]; then
+            strip "$PREFIX_PATH/bin/aria2"
+          elif [ -f "$PREFIX_PATH/bin/aria2-next" ]; then
+            strip "$PREFIX_PATH/bin/aria2-next"
+          fi
 
           # 打包安装树
           cd "$(dirname "$PREFIX_PATH")"
           tar cJf "$repo_root/aria2-next-install-release.tar.xz" "$(basename "$PREFIX_PATH")"
-
           echo "Package created: $repo_root/aria2-next-install-release.tar.xz"
 
       - name: Upload packaged install tree
