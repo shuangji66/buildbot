@@ -83,12 +83,14 @@ jobs:
           mkdir -p "$deps_prefix"
 
           # ----- 编译 zlib -----
+          # ----- 编译 zlib (使用 CMake) -----
           tar xf zlib.tar.gz && cd "zlib-$ZLIB_VERSION"
-          # 将 configure 中的 -Werror 改为 -Wno-error，避免因警告导致测试失败
-          sed -i 's/-Werror/-Wno-error/g' configure
-          CPPFLAGS="$RELEASE_CPPFLAGS" CFLAGS="-O2" LDFLAGS="$RELEASE_LDFLAGS" \
-            ./configure --prefix="$deps_prefix" --static
-          make -j"$jobs" && make install
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE="$CMAKE_BUILD_TYPE" \
+            -DCMAKE_INSTALL_PREFIX="$deps_prefix" \
+            -DCMAKE_C_FLAGS="-O2" \
+            -DBUILD_SHARED_LIBS=OFF
+          cmake --build build -j"$jobs" --target install
           cd "$repo_root"
 
           # ----- 编译 expat -----
