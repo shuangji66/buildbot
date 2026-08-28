@@ -152,6 +152,7 @@ jobs:
           cd "$repo_root"
 
           # ----- 配置并编译 aria2-next -----
+          # ----- 配置并编译 aria2-next -----
           PKG_CONFIG_PATH="$deps_prefix/lib/pkgconfig" \
           cmake -S . -B build/release -G Ninja \
             -DCMAKE_BUILD_TYPE="$CMAKE_BUILD_TYPE" \
@@ -170,26 +171,28 @@ jobs:
             -DPKG_CONFIG_EXECUTABLE="$(command -v pkg-config)" \
             -DCMAKE_INSTALL_PREFIX="$PREFIX_PATH"
 
-          # 构建所有默认目标（不指定 --target）
+          # 构建（不指定目标）
           cmake --build build/release -j"$jobs"
 
-          # 确保安装目录的父目录存在
-          mkdir -p "$(dirname "$PREFIX_PATH")"
+          # 直接打包构建产物中所有以 aria2 开头的可执行文件
+          # 创建一个临时打包目录，保持 bin/ 结构
+          PACKAGE_DIR="$repo_root/aria2-package"
+          mkdir -p "$PACKAGE_DIR/bin"
 
-          # 安装
-          cmake --install build/release
+          # 查找所有以 aria2 开头的可执行文件（排除 _tests）
+          find build/release -maxdepth 1 -type f -executable -name "aria2*" ! -name "*_tests" -exec cp {} "$PACKAGE_DIR/bin/" \;
 
-          # 去调试符号（strip）
-          if [ -f "$PREFIX_PATH/bin/aria2c" ]; then
-            strip "$PREFIX_PATH/bin/aria2c"
-          elif [ -f "$PREFIX_PATH/bin/aria2" ]; then
-            strip "$PREFIX_PATH/bin/aria2"
-          elif [ -f "$PREFIX_PATH/bin/aria2-next" ]; then
-            strip "$PREFIX_PATH/bin/aria2-next"
+          # 如果找不到任何文件，报错退出
+          if [ -z "$(ls -A "$PACKAGE_DIR/bin")" ]; then
+            echo "No aria2 executable found in build/release"
+            exit 1
           fi
 
-          # 打包安装树（使用 tar -C 避免 cd 问题）
-          tar -C "$(dirname "$PREFIX_PATH")" -cJf "$repo_root/aria2-next-install-release.tar.xz" "$(basename "$PREFIX_PATH")"
+          # 去掉调试符号（strip 所有复制进来的文件）
+          strip "$PACKAGE_DIR/bin/"* 2>/dev/null || true
+
+          # 打包（压缩包内顶层目录为 aria2-package，包含 bin/ 子目录）
+          tar -C "$repo_root" -cJf "$repo_root/aria2-next-install-release.tar.xz" "aria2-package"
           echo "Package created: $repo_root/aria2-next-install-release.tar.xz"
 
       - name: Upload packaged install tree
