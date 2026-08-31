@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       dsh_version:
-        description: 'dsh 包版本（例如 0.1.1-rc.2，或 latest）'
+        description: 'dsh 包版本（例如 0.1.2-alpha.2，或 latest）'
         required: true
-        default: '0.1.1-rc.2'
+        default: '0.1.2-alpha.2'
         type: string
       manifest_version:
         description: 'manifest 中的版本号（例如 0.1.1）'
