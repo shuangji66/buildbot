@@ -127,7 +127,7 @@ jobs:
           npm init -y
           npm install "$GITHUB_WORKSPACE/$PACKED" --prefix /var/apps/Harness/target/server
 
-      - name: 修改 dsh-app-boot 中的 PROFILE_TEMPLATES.web 数组
+      - name: 修改 dsh-app-boot 中的 PROFILE_TEMPLATES.web.bundles
         run: |
           FILE="/var/apps/Harness/target/server/node_modules/@deepseek-ai/dsh-app-boot/lib/index.js"
           if [ ! -f "$FILE" ]; then
@@ -147,6 +147,7 @@ jobs:
               process.exit(1);
             }
 
+            // 定位 PROFILE_TEMPLATES 对象的完整范围
             let braceCount = 0;
             let start = assignIndex + content.substring(assignIndex).indexOf('{');
             let end = start;
@@ -166,25 +167,64 @@ jobs:
             }
 
             const fullMatch = content.substring(start, end + 1);
-            const webRegex = /web\\s*:\\s*\\[([^\\]]*)\\]/;
-            const webMatch = fullMatch.match(webRegex);
-            if (!webMatch) {
-              console.error('未找到 PROFILE_TEMPLATES 中的 web 数组');
+
+            // 在 fullMatch 中查找 web: { ... }
+            const webStart = fullMatch.indexOf('web:');
+            if (webStart === -1) {
+              console.error('未找到 web 属性');
+              process.exit(1);
+            }
+            let webObjStart = fullMatch.indexOf('{', webStart);
+            if (webObjStart === -1) {
+              console.error('未找到 web 对象起始');
               process.exit(1);
             }
 
-            let items = webMatch[1].split(',').map(s => s.trim()).filter(s => s.length > 0);
-            if (items.includes('\"dshmarket\"')) {
-              console.log('dshmarket 已在 web 数组中，跳过');
-            } else {
-              items.push('\"dshmarket\"');
-              const newArrayStr = items.join(', ');
-              const newFullMatch = fullMatch.replace(webRegex, 'web: [' + newArrayStr + ']');
-              content = content.substring(0, start) + newFullMatch + content.substring(end + 1);
-              fs.writeFileSync(file, content);
-              console.log('已成功将 dshmarket 添加到 PROFILE_TEMPLATES.web');
+            // 计数定位 web 对象的结束
+            let webBraceCount = 0;
+            let webObjEnd = webObjStart;
+            for (let i = webObjStart; i < fullMatch.length; i++) {
+              if (fullMatch[i] === '{') webBraceCount++;
+              else if (fullMatch[i] === '}') {
+                webBraceCount--;
+                if (webBraceCount === 0) {
+                  webObjEnd = i;
+                  break;
+                }
+              }
+            }
+            if (webBraceCount !== 0) {
+              console.error('web 对象大括号不匹配');
+              process.exit(1);
+            }
+            const webObjStr = fullMatch.substring(webObjStart, webObjEnd + 1);
+
+            // 在 webObjStr 中查找 bundles 数组
+            const bundlesRegex = /bundles\\s*:\\s*\\[([^\\]]*)\\]/;
+            const bundlesMatch = webObjStr.match(bundlesRegex);
+            if (!bundlesMatch) {
+              console.error('未找到 web 中的 bundles 数组');
+              process.exit(1);
             }
 
+            // 提取数组项并检查是否已包含 dshmarket
+            let items = bundlesMatch[1].split(',').map(s => s.trim()).filter(s => s.length > 0);
+            if (items.includes('\"dshmarket\"')) {
+              console.log('dshmarket 已在 web.bundles 中，跳过');
+            } else {
+              items.push('\"dshmarket\"');
+              const newArrayStr = '[' + items.join(', ') + ']';
+              // 替换 bundles 数组
+              const newWebObjStr = webObjStr.replace(bundlesRegex, 'bundles: ' + newArrayStr);
+              // 将新 web 对象替换回 fullMatch
+              const newFullMatch = fullMatch.substring(0, webObjStart) + newWebObjStr + fullMatch.substring(webObjEnd + 1);
+              // 写回文件
+              content = content.substring(0, start) + newFullMatch + content.substring(end + 1);
+              fs.writeFileSync(file, content);
+              console.log('已成功将 dshmarket 添加到 PROFILE_TEMPLATES.web.bundles');
+            }
+
+            // 输出附近片段以供检查
             const snippet = content.substring(
               Math.max(0, assignIndex - 20),
               Math.min(content.length, assignIndex + 300)
