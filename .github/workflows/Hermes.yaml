@@ -17,12 +17,12 @@ on:
         type: boolean
         default: true
       hermes_agent_version:
-        description: 'hermes-agent 的 npm 版本号（例如 0.20.5，或 latest）'
+        description: 'hermes-agent 的 npm 版本号（例如 0.20.6，或 latest）'
         required: false
         type: string
         default: 'latest'
       hermes_web_ui_version:
-        description: 'hermes-web-ui 的 npm 版本号（例如 0.6.46，或 latest）'
+        description: 'hermes-web-ui 的 npm 版本号（例如 0.7.13，或 latest）'
         required: false
         type: string
         default: 'latest'
