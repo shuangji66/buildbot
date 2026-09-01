@@ -1,7 +1,8 @@
 #!/bin/bash
 export PATH=/var/apps/nodejs_v24/target/bin:$PATH
-export PATH=${TRIM_APPDEST}/server/bin:$PATH
-export PATH=${TRIM_APPDEST}/server/lib/node_modules/hermes-agent/runtime/hermes-agent/venv/bin/:$PATH
+export PATH=${TRIM_APPDEST}/server/node_modules/.bin:$PATH
+export PATH=${TRIM_APPDEST}/server/node_modules/hermes-agent/runtime/hermes-agent/venv/bin/:$PATH
+export PATH=${TRIM_APPDEST}/server/node_modules/hermes-agent/.uv_bin:$PATH
 export PORT="$port"
 export HOME="${TRIM_DATA_SHARE_PATHS%%:*}"
 
