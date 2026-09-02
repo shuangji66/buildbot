@@ -1,0 +1,22 @@
+{
+  "data-share": {
+    "shares": [
+      {
+        "name": "Openlist",
+        "permission": {
+          "rw": [
+            "Openlist"
+          ]
+        }
+      },
+      {
+        "name": "Openlist/data",
+        "permission": {
+          "rw": [
+            "Openlist"
+          ]
+        }
+      }
+    ]
+  }
+}

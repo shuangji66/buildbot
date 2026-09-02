@@ -1,0 +1,22 @@
+#!/bin/bash
+LOG_FILE="${TRIM_DATA_SHARE_PATHS%%:*}/data/info.log"
+DATA_DIR="${TRIM_DATA_SHARE_PATHS%%:*}/data"
+CFG_FILE="${DATA_DIR}/config.json"
+CONFIG_TEMPLATE="${TRIM_APPDEST}/templates/config.tpl"
+
+log_msg() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
+}
+
+if [ -f "${CFG_FILE}" ]; then
+    rm -rf "$CFG_FILE"
+    log_msg "清除旧配置.."
+fi
+sed \
+    -e "s|\${PORT}|$port|g" \
+    "$CONFIG_TEMPLATE" > "$CFG_FILE"
+log_msg "配置文件初始化.."
+bash -c "${TRIM_APPDEST}/bin/openlist admin set $admin_password --data ${DATA_DIR} --config ${CFG_FILE}" >> ${LOG_FILE} 2>&1
+log_msg "已设置管理员密码：$admin_password"
+
+exit 0

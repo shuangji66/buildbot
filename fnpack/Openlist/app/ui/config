@@ -1,0 +1,19 @@
+{
+  ".url": {
+    "Openlist.Application": {
+      "noDisplay": false,
+      "allUsers": false,
+      "fileTypes": [],
+      "control": {
+        "accessPerm": "editable"
+      },
+      "protocol": "",
+      "gatewayPrefix": "/app/Openlist",
+      "gatewaySocket": "app.sock",
+      "title": "OpenList",
+      "icon": "images/icon_{0}.png",
+      "type": "iframe",
+      "url": "/app/Openlist"
+    }
+  }
+}
