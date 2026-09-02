@@ -1,4 +1,4 @@
-name: Build Harness and Release
+name: Build Harness-test and Release
 
 on:
   workflow_dispatch:
