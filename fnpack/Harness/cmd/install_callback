@@ -4,6 +4,7 @@ cd ${TRIM_APPDEST}
 tar -xzf server.tar.gz
 rm -f server.tar.gz
 mkdir -p ${TRIM_PKGVAR}/pnpm
+mkdir -p ${TRIM_PKGVAR}/backup
 corepack enable pnpm --install-directory ${TRIM_PKGVAR}/pnpm
 
 exit 0
