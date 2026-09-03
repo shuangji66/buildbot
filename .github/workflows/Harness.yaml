@@ -3,13 +3,18 @@ name: Build Harness with dshmarket and Release
 on:
   workflow_dispatch:
     inputs:
+      harness_version:
+        description: 'Harness 二进制版本号（例如 1.0.0，将注入到二进制中）'
+        required: true
+        type: string
+        default: '1.0.0'
       dsh_version:
-        description: 'dsh 包版本（例如 0.1.2-alpha.2，或 latest）'
+        description: 'dsh 包版本（例如 0.1.2-alpha.5，或 latest）'
         required: true
         default: '0.1.2-alpha.5'
         type: string
       manifest_version:
-        description: 'manifest 中的版本号（例如 0.1.1）'
+        description: 'manifest 中的版本号（例如 0.1.2）'
         required: true
         type: string
       changelog:
@@ -29,6 +34,8 @@ jobs:
     strategy:
       matrix:
         arch: [amd64, arm64]
+    env:
+      HARNESS_VERSION: ${{ github.event.inputs.harness_version }}   # 从输入获取版本号
     steps:
       - name: 检出 shuangji66/dsh 仓库
         uses: actions/checkout@v7
@@ -57,11 +64,11 @@ jobs:
           mkdir -p ./dsh-src/backend/embed
           cp -r ./dsh-src/frontend/dist/* ./dsh-src/backend/embed/
 
-      - name: 构建 Go 二进制（${{ matrix.arch }}）
+      - name: 构建 Go 二进制（${{ matrix.arch }}）并注入版本号
         working-directory: ./dsh-src/backend
         run: |
           GOOS=linux GOARCH=${{ matrix.arch }} CGO_ENABLED=0 \
-            go build -trimpath -ldflags="-s -w" -o harness-${{ matrix.arch }} .
+            go build -trimpath -ldflags="-s -w -X main.harnessVersion=$HARNESS_VERSION" -o harness-${{ matrix.arch }} .
 
       - name: 上传 artifact
         uses: actions/upload-artifact@v7
