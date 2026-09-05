@@ -1,0 +1,147 @@
+name: Publish Multi-Arch (x86/arm)
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: '应用名称（如 Aria2）'
+        required: true
+        type: string
+      manifest_version:
+        description: 'manifest 中的版本号（如 1.0.1）'
+        required: true
+        type: string
+      changelog:
+        description: '更新日志（支持中文）'
+        required: true
+        type: string
+      artifact_pattern:
+        description: '匹配多个架构 artifact 的模式，默认 "fpk-*"，也可以指定精确名称如 "fpk-multi"'
+        required: false
+        type: string
+        default: 'fpk-*'
+      release_tag:
+        description: 'Release 标签（默认自动生成日期）'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      BUILDBOT:
+        description: '用于推送和发布仓库的 GitHub Token'
+        required: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: 下载 fpk 文件（多架构，支持 pattern）
+        uses: actions/download-artifact@v7
+        with:
+          pattern: ${{ inputs.artifact_pattern }}
+          merge-multiple: true
+          path: fpk_files
+
+      - name: 生成 Release Tag（如果未指定）
+        id: tag
+        run: |
+          if [ -z "${{ inputs.release_tag }}" ]; then
+            TAG=$(date +'%Y.%-m.%-d')
+          else
+            TAG="${{ inputs.release_tag }}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "RELEASE_TITLE=【$TAG 更新】" >> $GITHUB_OUTPUT
+
+      - name: 创建/更新 Release 并上传 fpk
+        env:
+          GH_TOKEN: ${{ secrets.BUILDBOT }}
+        run: |
+          REPO="shuangji66/Fndepot"
+          TAG="${{ steps.tag.outputs.tag }}"
+          TITLE="${{ steps.tag.outputs.RELEASE_TITLE }}"
+          APP_NAME="${{ inputs.app_name }}"
+          VERSION="${{ inputs.manifest_version }}"
+          CHANGELOG="${{ inputs.changelog }}"
+          NEW_NOTE="构建 ${APP_NAME} 版本 ${VERSION}。更新日志：${CHANGELOG}"
+
+          if gh release view "$TAG" --repo "$REPO" &>/dev/null; then
+            echo "Release $TAG 已存在，将添加资产并追加描述"
+            CURRENT_BODY=$(gh release view "$TAG" --repo "$REPO" --json body -q .body)
+            [ -n "$CURRENT_BODY" ] && NEW_BODY="${CURRENT_BODY}"$'\n'"$NEW_NOTE" || NEW_BODY="$NEW_NOTE"
+            gh release edit "$TAG" --repo "$REPO" --notes "$NEW_BODY"
+          else
+            gh release create "$TAG" --repo "$REPO" --title "$TITLE" --notes "$NEW_NOTE"
+          fi
+
+          for fpk in fpk_files/*.fpk; do
+            echo "上传 $fpk"
+            gh release upload "$TAG" "$fpk" --repo "$REPO" --clobber
+          done
+
+      - name: 通过 GitHub API 获取 digest 并更新 fnpack.json（x86/arm）
+        env:
+          GH_TOKEN: ${{ secrets.BUILDBOT }}
+        run: |
+          REPO="shuangji66/Fndepot"
+          TAG="${{ steps.tag.outputs.tag }}"
+          APP_NAME="${{ inputs.app_name }}"
+          VERSION="${{ inputs.manifest_version }}"
+          CHANGELOG="${{ inputs.changelog }}"
+
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" fndepot_repo
+          cd fndepot_repo
+
+          # 定义函数获取指定架构的 size 和 digest
+          get_asset_info() {
+            local arch=$1
+            local filename="${APP_NAME}-${VERSION}-${arch}.fpk"
+            info=$(gh api "repos/${REPO}/releases/tags/${TAG}" \
+              --jq ".assets[] | select(.name == \"$filename\") | {size, digest}")
+            if [ -z "$info" ]; then
+              echo "错误：未找到资产 $filename" >&2
+              exit 1
+            fi
+            size=$(echo "$info" | jq -r '.size')
+            sha256=$(echo "$info" | jq -r '.digest | sub("^sha256:"; "")')
+            echo "${arch}_size=$size"
+            echo "${arch}_sha256=$sha256"
+          }
+
+          eval $(get_asset_info x86)
+          eval $(get_asset_info arm)
+
+          DOWNLOAD_URL_X86="https://github.com/${REPO}/releases/download/${TAG}/${APP_NAME}-${VERSION}-x86.fpk"
+          DOWNLOAD_URL_ARM="https://github.com/${REPO}/releases/download/${TAG}/${APP_NAME}-${VERSION}-arm.fpk"
+
+          jq --arg app "$APP_NAME" \
+             --arg version "$VERSION" \
+             --arg changelog "$CHANGELOG" \
+             --arg url_x86 "$DOWNLOAD_URL_X86" \
+             --arg sha256_x86 "$x86_sha256" \
+             --arg size_x86 "$x86_size" \
+             --arg url_arm "$DOWNLOAD_URL_ARM" \
+             --arg sha256_arm "$arm_sha256" \
+             --arg size_arm "$arm_size" \
+             '.apps[$app].releases[$version] = {
+                 "changelog": $changelog,
+                 "packages": {
+                     "x86": {
+                         "download_url": $url_x86,
+                         "sha256": $sha256_x86,
+                         "size": ($size_x86 | tonumber)
+                     },
+                     "arm": {
+                         "download_url": $url_arm,
+                         "sha256": $sha256_arm,
+                         "size": ($size_arm | tonumber)
+                     }
+                 }
+             }' fnpack.json > fnpack.json.tmp
+
+          mv fnpack.json.tmp fnpack.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add fnpack.json
+          git commit -m "chore: update ${APP_NAME} to ${VERSION} (${TAG})"
+          git push
