@@ -1,0 +1,12 @@
+appname=testv2
+version=${VERSION}
+display_name=v2规范action脚本测试
+desc="""v2规范action脚本测试"""
+platform=${PLATFORM}
+source=thirdparty
+maintainer=shuangji66
+distributor=shuangji66
+ctl_stop=true
+checkport=true
+disable_authorization_path=false
+changelog=${CHANGELOG}
