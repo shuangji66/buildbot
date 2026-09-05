@@ -1,0 +1,129 @@
+name: Publish Single-Arch (all)
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: '应用名称（如 PeerBanHelper）'
+        required: true
+        type: string
+      manifest_version:
+        description: 'manifest 中的版本号（如 9.3.10-1）'
+        required: true
+        type: string
+      changelog:
+        description: '更新日志（支持中文）'
+        required: true
+        type: string
+      artifact_name:
+        description: '包含 all 架构 fpk 的 artifact 名称（默认为 fpk-all）'
+        required: false
+        type: string
+        default: 'fpk-all'
+      release_tag:
+        description: 'Release 标签（默认自动生成日期）'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      BUILDBOT:
+        description: '用于推送和发布仓库的 GitHub Token'
+        required: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: 下载 fpk 文件（all）
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: fpk_files
+
+      - name: 生成 Release Tag（如果未指定）
+        id: tag
+        run: |
+          if [ -z "${{ inputs.release_tag }}" ]; then
+            TAG=$(date +'%Y.%-m.%-d')
+          else
+            TAG="${{ inputs.release_tag }}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "RELEASE_TITLE=【$TAG 更新】" >> $GITHUB_OUTPUT
+
+      - name: 创建/更新 Release 并上传 fpk
+        env:
+          GH_TOKEN: ${{ secrets.BUILDBOT }}
+        run: |
+          REPO="shuangji66/Fndepot"
+          TAG="${{ steps.tag.outputs.tag }}"
+          TITLE="${{ steps.tag.outputs.RELEASE_TITLE }}"
+          APP_NAME="${{ inputs.app_name }}"
+          VERSION="${{ inputs.manifest_version }}"
+          CHANGELOG="${{ inputs.changelog }}"
+          NEW_NOTE="构建 ${APP_NAME} 版本 ${VERSION}。更新日志：${CHANGELOG}"
+
+          if gh release view "$TAG" --repo "$REPO" &>/dev/null; then
+            echo "Release $TAG 已存在，将添加资产并追加描述"
+            CURRENT_BODY=$(gh release view "$TAG" --repo "$REPO" --json body -q .body)
+            [ -n "$CURRENT_BODY" ] && NEW_BODY="${CURRENT_BODY}"$'\n'"$NEW_NOTE" || NEW_BODY="$NEW_NOTE"
+            gh release edit "$TAG" --repo "$REPO" --notes "$NEW_BODY"
+          else
+            gh release create "$TAG" --repo "$REPO" --title "$TITLE" --notes "$NEW_NOTE"
+          fi
+
+          for fpk in fpk_files/*.fpk; do
+            echo "上传 $fpk"
+            gh release upload "$TAG" "$fpk" --repo "$REPO" --clobber
+          done
+
+      - name: 通过 GitHub API 获取 digest 并更新 fnpack.json（all）
+        env:
+          GH_TOKEN: ${{ secrets.BUILDBOT }}
+        run: |
+          REPO="shuangji66/Fndepot"
+          TAG="${{ steps.tag.outputs.tag }}"
+          APP_NAME="${{ inputs.app_name }}"
+          VERSION="${{ inputs.manifest_version }}"
+          CHANGELOG="${{ inputs.changelog }}"
+
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" fndepot_repo
+          cd fndepot_repo
+
+          filename="${APP_NAME}-${VERSION}-all.fpk"
+          info=$(gh api "repos/${REPO}/releases/tags/${TAG}" \
+            --jq ".assets[] | select(.name == \"$filename\") | {size, digest}")
+
+          if [ -z "$info" ]; then
+            echo "错误：未找到资产 $filename" >&2
+            exit 1
+          fi
+
+          size=$(echo "$info" | jq -r '.size')
+          sha256=$(echo "$info" | jq -r '.digest | sub("^sha256:"; "")')
+          download_url="https://github.com/${REPO}/releases/download/${TAG}/${filename}"
+
+          jq --arg app "$APP_NAME" \
+             --arg version "$VERSION" \
+             --arg changelog "$CHANGELOG" \
+             --arg url "$download_url" \
+             --arg sha256 "$sha256" \
+             --arg size "$size" \
+             '.apps[$app].releases[$version] = {
+                 "changelog": $changelog,
+                 "packages": {
+                     "all": {
+                         "download_url": $url,
+                         "sha256": $sha256,
+                         "size": ($size | tonumber)
+                     }
+                 }
+             }' fnpack.json > fnpack.json.tmp
+
+          mv fnpack.json.tmp fnpack.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add fnpack.json
+          git commit -m "chore: update ${APP_NAME} to ${VERSION} (${TAG})"
+          git push
