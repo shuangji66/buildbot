@@ -1,0 +1,139 @@
+name: Build Teamspeaker6 and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest_version:
+        description: 'manifest 中的版本号'
+        required: true
+        type: string
+      changelog:
+        description: '更新日志（支持中文）'
+        required: true
+        type: string
+      publish:
+        description: '是否发布到 Fndepot Release'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    outputs:
+      app_name: ${{ steps.set_vars.outputs.app_name }}
+      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
+      changelog: ${{ steps.set_vars.outputs.changelog }}
+    steps:
+      - name: 设置项目变量
+        id: set_vars
+        run: |
+          APP_NAME="Teamspeaker6"
+          MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          CHANGELOG="${{ github.event.inputs.changelog }}"
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+
+      - name: 确定平台标识
+        id: arch
+        run: |
+          if [ "${{ matrix.os }}" = "ubuntu-24.04" ]; then
+            PLATFORM="x86"
+          else
+            PLATFORM="arm"
+          fi
+          echo "platform=$PLATFORM" >> $GITHUB_OUTPUT
+
+      - name: 拉取 Teamspeak6 Server 镜像
+        run: |
+          docker pull teamspeaksystems/teamspeak6-server:latest
+
+      - name: 从镜像中提取 /opt/tsserver 目录
+        run: |
+          CONTAINER_ID=$(docker create teamspeaksystems/teamspeak6-server:latest)
+          mkdir -p extracted/tsserver
+          docker cp "$CONTAINER_ID":/opt/tsserver/. extracted/tsserver/
+          docker rm "$CONTAINER_ID"
+          echo "提取完成，目录结构："
+          ls -la extracted/tsserver/
+
+      - name: 检出 buildbot 仓库（包含 fnpack 模板）
+        uses: actions/checkout@v6
+        with:
+          path: buildbot_repo
+
+      - name: 准备 fnpack 工作区
+        run: |
+          mkdir -p build_workspace
+          cp -r "buildbot_repo/fnpack/${{ steps.set_vars.outputs.app_name }}" build_workspace/
+          if [ "${{ matrix.os }}" = "ubuntu-24.04" ]; then
+            FNPACK_BIN="fnpack-1.2.1-linux-amd64"
+          else
+            FNPACK_BIN="fnpack-1.2.1-linux-arm64"
+          fi
+          cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
+          chmod +x build_workspace/fnpack
+
+      - name: 将提取的 tsserver 复制到应用目录
+        run: |
+          APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app"
+          mkdir -p "$APP_DIR/tsserver"
+          cp -r extracted/tsserver/* "$APP_DIR/tsserver/"
+          echo "复制完成，app/tsserver 目录内容："
+          ls -la "$APP_DIR/tsserver"
+
+      - name: 修改 manifest 文件（替换版本号、更新日志和平台）
+        run: |
+          MANIFEST_PATH="build_workspace/${{ steps.set_vars.outputs.app_name }}/manifest"
+          if [ ! -f "$MANIFEST_PATH" ]; then
+            echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
+            exit 1
+          fi
+          MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
+          CHANGELOG="${{ steps.set_vars.outputs.changelog }}"
+          sudo apt-get update && sudo apt-get install -y jq
+          ESCAPED_CHANGELOG=$(printf '%s' "$CHANGELOG" | jq -sRr @json)
+          sed -i "s/\${VERSION}/$MANIFEST_VERSION/g" "$MANIFEST_PATH"
+          sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
+          sed -i "s/\${PLATFORM}/${{ steps.arch.outputs.platform }}/g" "$MANIFEST_PATH"
+          echo "manifest 修改后的内容："
+          cat "$MANIFEST_PATH"
+
+      - name: 执行 fnpack 打包
+        run: |
+          cd build_workspace
+          ./fnpack build "${{ steps.set_vars.outputs.app_name }}"
+          FPK_FILE=$(ls *.fpk | head -n 1)
+          if [ -z "$FPK_FILE" ]; then
+            echo "错误：未找到生成的 fpk 文件"
+            exit 1
+          fi
+          FINAL_NAME="${{ steps.set_vars.outputs.app_name }}-${{ steps.set_vars.outputs.manifest_version }}-${{ steps.arch.outputs.platform }}.fpk"
+          mv "$FPK_FILE" "$FINAL_NAME"
+          echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
+          echo "打包完成，生成文件：$FINAL_NAME"
+          ls -la *.fpk
+
+      - name: 上传 fpk 文件作为 Artifact（供发布任务使用）
+        uses: actions/upload-artifact@v7
+        with:
+          name: fpk-${{ steps.arch.outputs.platform }}
+          path: build_workspace/*.fpk
+          if-no-files-found: error
+
+  publish:
+    name: 发布到 Fndepot Release（调用通用多架构发布工作流）
+    needs: build
+    if: always() && needs.build.result == 'success' && github.event.inputs.publish == 'true'
+    uses: ./.github/workflows/Publish-x86-arm.yaml
+    with:
+      app_name: ${{ needs.build.outputs.app_name }}
+      manifest_version: ${{ needs.build.outputs.manifest_version }}
+      changelog: ${{ needs.build.outputs.changelog }}
+      artifact_pattern: 'fpk-*'   # 匹配 fpk-x86 和 fpk-arm
+    secrets:
+      BUILDBOT: ${{ secrets.BUILDBOT }}
