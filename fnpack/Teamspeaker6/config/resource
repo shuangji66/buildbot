@@ -1,0 +1,14 @@
+{
+  "data-share": {
+    "shares": [
+      {
+        "name": "Teamspeaker6",
+        "permission": {
+          "rw": [
+            "Teamspeaker6"
+          ]
+        }
+      }
+    ]
+  }
+}

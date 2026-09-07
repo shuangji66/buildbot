@@ -1,0 +1,21 @@
+[
+  {
+    "stepTitle": "欢迎使用",
+    "items": [
+      {
+        "type": "text",
+        "field": "port",
+        "label": "语音端口",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "helpText": "udp协议",
+        "initValue": "9987"
+      }
+    ]
+  }
+]

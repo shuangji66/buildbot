@@ -1,0 +1,14 @@
+appname=Teamspeaker6
+version=${VERSION}
+display_name=Teamspeaker6
+desc="""<p>📞TeamSpeak是全球流行的团队语音通讯工具软件。</p><p>⭐使用说明：管理密钥等信息生成在"应用文件/Teamspeaker6/info.log"，在Teamspeaker6客户端连接服务端后使用特权密钥进行管理。</p>"""
+platform=${PLATFORM}
+source=thirdparty
+maintainer=teamspeak
+maintainer_url=https://teamspeak.com/zh-CN/
+distributor=shuangji66
+distributor_url=https://github.com/shuangji66/FnDepot
+ctl_stop=true
+checkport=false
+disable_authorization_path=false
+changelog=${CHANGELOG}
