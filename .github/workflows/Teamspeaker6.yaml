@@ -126,7 +126,7 @@ jobs:
           if-no-files-found: error
 
   publish:
-    name: 发布到 Fndepot Release（调用通用多架构发布工作流）
+    name: 发布到 Fndepot Release
     needs: build
     if: always() && needs.build.result == 'success' && github.event.inputs.publish == 'true'
     uses: ./.github/workflows/Publish-x86-arm.yaml
@@ -134,6 +134,6 @@ jobs:
       app_name: ${{ needs.build.outputs.app_name }}
       manifest_version: ${{ needs.build.outputs.manifest_version }}
       changelog: ${{ needs.build.outputs.changelog }}
-      artifact_pattern: 'fpk-*'   # 匹配 fpk-x86 和 fpk-arm
+      artifact_pattern: 'fpk-*'
     secrets:
       BUILDBOT: ${{ secrets.BUILDBOT }}
