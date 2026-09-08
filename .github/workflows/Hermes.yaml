@@ -68,7 +68,7 @@ jobs:
           UI_VERSION="${{ github.event.inputs.hermes_web_ui_version }}"
           if [ "$AGENT_VERSION" = "latest" ]; then AGENT_PKG="hermes-agent"; else AGENT_PKG="hermes-agent@$AGENT_VERSION"; fi
           if [ "$UI_VERSION" = "latest" ]; then UI_PKG="hermes-web-ui"; else UI_PKG="hermes-web-ui@$UI_VERSION"; fi
-          npm install $AGENT_PKG $UI_PKG --prefix /var/apps/Hermes/target/server
+          npm install -g $AGENT_PKG $UI_PKG --prefix /var/apps/Hermes/target/server
 
       - name: 压缩 server 目录为 server.tar.gz
         run: |
