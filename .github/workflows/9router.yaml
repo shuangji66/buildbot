@@ -1,0 +1,173 @@
+name: Build 9router and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      manifest_version:
+        description: 'manifest 中的版本号（例如 1.0.0）'
+        required: true
+        type: string
+      changelog:
+        description: '更新日志（支持中文）'
+        required: true
+        type: string
+      publish:
+        description: '是否发布到 Fndepot Release'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  # 第一步：在 Debian 12 容器中安装 9router 并压缩 server 目录
+  build-in-container:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: x86
+          - os: ubuntu-24.04-arm
+            platform: arm
+    runs-on: ${{ matrix.os }}
+    container: debian:12
+    outputs:
+      app_name: ${{ steps.set_vars.outputs.app_name }}
+      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
+      changelog: ${{ steps.set_vars.outputs.changelog }}
+    steps:
+      - name: 设置项目变量
+        id: set_vars
+        run: |
+          APP_NAME="9router"
+          MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          CHANGELOG="${{ github.event.inputs.changelog }}"
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+
+      - name: 安装 Node.js 24 和基础工具
+        run: |
+          apt-get update
+          apt-get install -y curl git
+          curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+          apt-get install -y nodejs
+
+      - name: 创建目标目录并全局安装 9router
+        run: |
+          mkdir -p /var/apps/9router/target/server
+          npm install -g 9router@latest --prefix /var/apps/9router/target/server
+
+      - name: 压缩 server 目录为 server.tar.gz
+        run: |
+          cd /var/apps/9router/target
+          tar -czf server.tar.gz server
+
+      - name: 上传 server.tar.gz 作为 Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: server-${{ matrix.platform }}
+          path: /var/apps/9router/target/server.tar.gz
+          if-no-files-found: error
+
+  # 第二步：在宿主机（容器外）进行 fnpack 打包，使用对应架构的 runner
+  package:
+    name: 打包 fpk
+    needs: build-in-container
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: x86
+          - os: ubuntu-24.04-arm
+            platform: arm
+    outputs:
+      app_name: ${{ steps.set_vars.outputs.app_name }}
+      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
+      changelog: ${{ steps.set_vars.outputs.changelog }}
+    steps:
+      - name: 设置项目变量（从 build-in-container 继承）
+        id: set_vars
+        run: |
+          echo "app_name=${{ needs.build-in-container.outputs.app_name }}" >> $GITHUB_OUTPUT
+          echo "manifest_version=${{ needs.build-in-container.outputs.manifest_version }}" >> $GITHUB_OUTPUT
+          echo "changelog=${{ needs.build-in-container.outputs.changelog }}" >> $GITHUB_OUTPUT
+
+      - name: 下载对应架构的 server.tar.gz
+        uses: actions/download-artifact@v7
+        with:
+          name: server-${{ matrix.platform }}
+          path: ./server_artifact
+
+      - name: 检出 buildbot 仓库（包含 fnpack 模板）
+        uses: actions/checkout@v7
+        with:
+          path: buildbot_repo
+
+      - name: 准备 fnpack 工作区
+        run: |
+          mkdir -p build_workspace
+          cp -r "buildbot_repo/fnpack/${{ needs.build-in-container.outputs.app_name }}" build_workspace/
+          if [ "${{ matrix.platform }}" = "x86" ]; then
+            FNPACK_BIN="fnpack-1.2.1-linux-amd64"
+          else
+            FNPACK_BIN="fnpack-1.2.1-linux-arm64"
+          fi
+          cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
+          chmod +x build_workspace/fnpack
+
+      - name: 复制 server.tar.gz 到 app 目录
+        run: |
+          mkdir -p build_workspace/9router/app
+          cp ./server_artifact/server.tar.gz build_workspace/9router/app/
+
+      - name: 修改 manifest 文件
+        run: |
+          MANIFEST_PATH="build_workspace/${{ needs.build-in-container.outputs.app_name }}/manifest"
+          if [ ! -f "$MANIFEST_PATH" ]; then
+            echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
+            exit 1
+          fi
+          MANIFEST_VERSION="${{ needs.build-in-container.outputs.manifest_version }}"
+          CHANGELOG="${{ needs.build-in-container.outputs.changelog }}"
+          ESCAPED_CHANGELOG=$(printf '%s' "$CHANGELOG" | jq -sRr @json)
+          sed -i "s/\${VERSION}/$MANIFEST_VERSION/g" "$MANIFEST_PATH"
+          sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
+          sed -i "s/\${PLATFORM}/${{ matrix.platform }}/g" "$MANIFEST_PATH"
+          echo "manifest 修改后的内容："
+          cat "$MANIFEST_PATH"
+
+      - name: 执行 fnpack 打包
+        run: |
+          cd build_workspace
+          ./fnpack build "${{ needs.build-in-container.outputs.app_name }}"
+          FPK_FILE=$(ls *.fpk | head -n 1)
+          if [ -z "$FPK_FILE" ]; then
+            echo "错误：未找到生成的 fpk 文件"
+            exit 1
+          fi
+          FINAL_NAME="${{ needs.build-in-container.outputs.app_name }}-${{ needs.build-in-container.outputs.manifest_version }}-${{ matrix.platform }}.fpk"
+          mv "$FPK_FILE" "$FINAL_NAME"
+          echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
+          echo "打包完成，生成文件：$FINAL_NAME"
+          ls -la *.fpk
+
+      - name: 上传 fpk 文件作为 Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: fpk-${{ matrix.platform }}
+          path: build_workspace/*.fpk
+          if-no-files-found: error
+
+  # 第三步：发布到 Fndepot
+  publish:
+    name: 发布到 Fndepot Release
+    needs: package
+    if: always() && needs.package.result == 'success' && github.event.inputs.publish == 'true'
+    uses: ./.github/workflows/Publish-x86-arm.yaml
+    with:
+      app_name: ${{ needs.package.outputs.app_name }}
+      manifest_version: ${{ needs.package.outputs.manifest_version }}
+      changelog: ${{ needs.package.outputs.changelog }}
+      artifact_pattern: 'fpk-*'
+    secrets:
+      BUILDBOT: ${{ secrets.BUILDBOT }}
