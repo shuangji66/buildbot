@@ -1,0 +1,39 @@
+name: Build Openclaw
+on:
+  workflow_dispatch:
+
+jobs:
+  build-in-container:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: x86
+          - os: ubuntu-24.04-arm
+            platform: arm
+    runs-on: ${{ matrix.os }}
+    container: debian:12
+    steps:
+      - name: 安装 Node.js 26 和基础工具
+        run: |
+          apt-get update
+          apt-get install -y curl git python3 build-essential
+          curl -fsSL https://deb.nodesource.com/setup_26.x | bash -
+          apt-get install -y nodejs
+
+      - name: 创建目标目录并全局安装
+        run: |
+          mkdir -p /var/apps/Openclaw/target/server
+          npm install -g openclaw@latest --allow-scripts=openclaw --prefix /var/apps/Openclaw/target/server
+
+      - name: 压缩 server 目录为 server.tar.gz
+        run: |
+          cd /var/apps/Openclaw/target
+          tar -czf server.tar.gz server
+
+      - name: 上传 server.tar.gz 作为 Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: server-${{ matrix.platform }}
+          path: /var/apps/Openclaw/target/server.tar.gz
+          if-no-files-found: error
