@@ -1,0 +1,44 @@
+name: Build 9router
+on:
+  workflow_dispatch:
+
+jobs:
+  build-in-container:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: x86
+          - os: ubuntu-24.04-arm
+            platform: arm
+    runs-on: ${{ matrix.os }}
+    container: debian:12
+    steps:
+      - name: 安装 Bun 和基础工具
+        run: |
+          apt-get update
+          apt-get install -y curl git unzip
+          curl -fsSL https://bun.sh/install | bash
+          echo "$HOME/.bun/bin" >> $GITHUB_PATH
+
+      - name: 在目标目录中安装 9router
+        run: |
+          mkdir -p /var/apps/9router/target/server
+          cd /var/apps/9router/target/server
+          # 初始化 package.json（避免 "No package.json found"）
+          bun init -y
+          # 安装 9router（会自动写入 dependencies）
+          bun add 9router
+          # （可选）如果只需要生产依赖，可加 --production
+
+      - name: 压缩 server 目录为 server.tar.gz
+        run: |
+          cd /var/apps/9router/target
+          tar -czf server.tar.gz server
+
+      - name: 上传 server.tar.gz 作为 Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: server-${{ matrix.platform }}
+          path: /var/apps/9router/target/server.tar.gz
+          if-no-files-found: error
