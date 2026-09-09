@@ -1,0 +1,15 @@
+[
+  {
+    "stepTitle": "欢迎使用",
+    "items": [
+      {
+        "type": "text",
+        "field": "port",
+        "label": "端口",
+        "rules": [],
+        "options": [],
+        "initValue": "20128"
+      }
+    ]
+  }
+]

@@ -1,0 +1,16 @@
+appname=9router
+version=1.0.0
+display_name=9router
+desc="""<p>💰免费的人工智能路由器及代币节省工具，通过 RTK 技术节省 20-40%的代币成本，同时还能实现自动回退功能，从而使用免费且便宜的 AI 模型。</p><p>⭐使用说明：9router强制监听127.0.0.1，安全起见不提供反代，需自行使用正规web工具（如Lucky、Nginx）建立安全反代方可使用。初始密码123456。</p>"""
+platform=x86
+source=thirdparty
+maintainer=decolua
+maintainer_url=https://github.com/decolua/9router
+distributor=shuangji66
+distributor_url=https://github.com/shuangji66/FnDepot
+ctl_stop=true
+install_dep_apps=nodejs_v24
+desktop_uidir=ui
+desktop_applaunchname=9router.Application
+checkport=false
+disable_authorization_path=false

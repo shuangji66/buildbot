@@ -1,0 +1,28 @@
+[
+  {
+    "stepTitle": "欢迎使用",
+    "items": [
+      {
+        "type": "text",
+        "field": "port",
+        "label": "端口",
+        "rules": [],
+        "options": [],
+        "initValue": "20128"
+      }
+    ]
+  },
+  {
+    "stepTitle": "提示",
+    "items": [
+      {
+        "type": "tips",
+        "field": "wizard_default",
+        "label": "示例项",
+        "rules": [],
+        "options": [],
+        "helpText": "9router强制监听127.0.0.1，安全起见不提供反代，需自行使用正规web工具（如Lucky、Nginx）建立安全反代方可使用。"
+      }
+    ]
+  }
+]

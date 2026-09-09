@@ -1,0 +1,18 @@
+#!/bin/bash
+
+### This script is called after the user uninstalls the application.
+  
+# 获取用户在向导中的选择
+WIZARD_DATA_ACTION="$wizard_data_action"
+
+echo "卸载时，用户选择数据保留选项: $WIZARD_DATA_ACTION"
+
+# 根据用户选择执行相应逻辑
+if [ "$WIZARD_DATA_ACTION" = "delete" ]; then
+    echo "开始删除数据目录：$TRIM_PKGVAR"
+    rm -rf ${TRIM_PKGVAR}
+else
+    echo "保留数据不动"
+fi
+
+exit 0
