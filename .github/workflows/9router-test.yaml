@@ -14,22 +14,17 @@ jobs:
     runs-on: ${{ matrix.os }}
     container: debian:12
     steps:
-      - name: 安装 Bun 和基础工具
+      - name: 安装 Node.js 24 和基础工具
         run: |
           apt-get update
-          apt-get install -y curl git unzip
-          curl -fsSL https://bun.sh/install | bash
-          echo "$HOME/.bun/bin" >> $GITHUB_PATH
+          apt-get install -y curl git
+          curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+          apt-get install -y nodejs
 
-      - name: 在目标目录中安装 9router
+      - name: 创建目标目录并全局安装
         run: |
           mkdir -p /var/apps/9router/target/server
-          cd /var/apps/9router/target/server
-          # 初始化 package.json（避免 "No package.json found"）
-          bun init -y
-          # 安装 9router（会自动写入 dependencies）
-          bun add 9router
-          # （可选）如果只需要生产依赖，可加 --production
+          npm install -g 9router --prefix /var/apps/9router/target/server
 
       - name: 压缩 server 目录为 server.tar.gz
         run: |
