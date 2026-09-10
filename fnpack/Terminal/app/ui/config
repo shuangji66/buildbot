@@ -1,0 +1,20 @@
+{
+  ".url": {
+    "Terminal.Application": {
+      "noDisplay": false,
+      "allUsers": false,
+      "fileTypes": [],
+      "control": {
+        "accessPerm": "hidden"
+      },
+      "protocol": "",
+      "gatewayPrefix": "/app/Terminal",
+      "gatewaySocket": "app.sock",
+      "title": "Terminal",
+      "icon": "images/icon_{0}.png",
+      "type": "iframe",
+      "port": "",
+      "url": "/app/Terminal"
+    }
+  }
+}
