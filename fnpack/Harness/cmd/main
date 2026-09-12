@@ -7,6 +7,7 @@ export PNPM_HOME="${TRIM_PKGVAR}/pnpm"
 export HARNESS_ADMIN_SOCK="${TRIM_APPDEST}/app.sock"
 export HARNESS_ADMIN_BASEURL="/app/Harness"
 export PROXY_PORT="$port"
+export HARNESS_DSH_PID_FILE="${TRIM_PKGVAR}/dsh.pid"
 export HARNESS_PID_FILE="${TRIM_PKGVAR}/harness.pid"
 export HARNESS_LOG_FILE="${TRIM_PKGVAR}/harness.log"
 
