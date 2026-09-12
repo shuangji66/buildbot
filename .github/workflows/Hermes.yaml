@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       manifest_version:
-        description: 'manifest 中的版本号（例如 1.0.0）'
+        description: 'manifest 中的版本号（例如 0.7.19）'
         required: true
         type: string
       changelog:
@@ -17,12 +17,12 @@ on:
         type: boolean
         default: true
       hermes_agent_version:
-        description: 'hermes-agent 的 npm 版本号（例如 0.20.6，或 latest）'
+        description: 'hermes-agent 的 npm 版本号（例如 0.21.1，或 latest）'
         required: false
         type: string
         default: 'latest'
       hermes_web_ui_version:
-        description: 'hermes-web-ui 的 npm 版本号（例如 0.7.13，或 latest）'
+        description: 'hermes-web-ui 的 npm 版本号（例如 0.7.19，或 latest）'
         required: false
         type: string
         default: 'latest'
@@ -176,11 +176,10 @@ jobs:
     name: 发布到 Fndepot Release
     needs: package
     if: always() && needs.package.result == 'success' && github.event.inputs.publish == 'true'
-    uses: ./.github/workflows/Publish-x86-arm.yaml
+    uses: ./.github/workflows/Publish.yaml
     with:
       app_name: ${{ needs.package.outputs.app_name }}
       manifest_version: ${{ needs.package.outputs.manifest_version }}
       changelog: ${{ needs.package.outputs.changelog }}
-      artifact_pattern: 'fpk-*'   # 匹配 fpk-x86 和 fpk-arm
     secrets:
       BUILDBOT: ${{ secrets.BUILDBOT }}
