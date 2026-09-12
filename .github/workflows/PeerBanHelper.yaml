@@ -60,7 +60,7 @@ jobs:
         run: |
           mkdir -p build_workspace
           cp -r "buildbot_repo/fnpack/${{ steps.set_vars.outputs.app_name }}" build_workspace/
-          cp "buildbot_repo/fnpack/fnpack-1.2.1-linux-amd64" build_workspace/fnpack
+          cp "buildbot_repo/fnpack/fnpack-1.2.3-linux-amd64" build_workspace/fnpack
           chmod +x build_workspace/fnpack
 
       # ========== 项目特有的复制步骤 ==========
