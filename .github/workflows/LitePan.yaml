@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       manifest_version:
-        description: 'manifest 中的版本号（例如 0.5.3）'
+        description: 'manifest 中的版本号（例如 0.5.5）'
         required: true
         type: string
       changelog:
