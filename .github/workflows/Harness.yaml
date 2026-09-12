@@ -363,16 +363,15 @@ jobs:
           path: build_workspace/*.fpk
           if-no-files-found: error
 
-  # ========== 第四步：发布到 Fndepot（调用通用发布工作流） ==========
+  # ========== 第四步：发布到 Fndepot ==========
   publish:
     name: 发布到 Fndepot Release
     needs: package
     if: always() && needs.package.result == 'success' && github.event.inputs.publish == 'true'
-    uses: ./.github/workflows/Publish-x86-arm.yaml
+    uses: ./.github/workflows/Publish.yaml
     with:
       app_name: ${{ needs.package.outputs.app_name }}
       manifest_version: ${{ needs.package.outputs.manifest_version }}
       changelog: ${{ needs.package.outputs.changelog }}
-      artifact_pattern: 'fpk-*'
     secrets:
       BUILDBOT: ${{ secrets.BUILDBOT }}
