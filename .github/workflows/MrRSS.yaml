@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       manifest_version:
-        description: 'manifest 中的版本号（例如 1.3.25）'
+        description: 'manifest 中的版本号（例如 1.3.33）'
         required: true
         type: string
       changelog:
@@ -49,10 +49,10 @@ jobs:
         with:
           node-version: '24'
 
-      - name: 安装 Go 1.26
+      - name: 安装 Go 1.27
         uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
+          go-version: '1.27'
 
       - name: 检出 buildbot 仓库（包含模板）
         uses: actions/checkout@v7
