@@ -8,9 +8,10 @@ on:
         required: true
         type: string
       manifest_version:
-        description: 'manifest 中的版本号（例如 1.27.1）'
-        required: true
+        description: 'manifest 中的版本号（留空则与 Go 版本号一致）'
+        required: false
         type: string
+        default: ''
       changelog:
         description: '更新日志（支持中文）'
         required: true
@@ -44,15 +45,21 @@ jobs:
           APP_NAME="golang"
           VERSION="${{ github.event.inputs.version }}"
           MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          # 未填写 manifest_version 时，回退使用 Go 版本号
+          if [ -z "$MANIFEST_VERSION" ]; then
+            MANIFEST_VERSION="$VERSION"
+          fi
           CHANGELOG="${{ github.event.inputs.changelog }}"
           echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
           echo "upstream_version=$VERSION" >> $GITHUB_OUTPUT
           echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
           echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "Go 版本: $VERSION"
+          echo "manifest 版本: $MANIFEST_VERSION"
 
       - name: 下载 Go 压缩包（${{ matrix.platform }}）
         run: |
-          VERSION="${{ github.event.inputs.version }}"
+          VERSION="${{ steps.set_vars.outputs.upstream_version }}"
           GOARCH="${{ matrix.goarch }}"
           DOWNLOAD_URL="https://dl.google.com/go/go${VERSION}.linux-${GOARCH}.tar.gz"
           echo "下载地址: $DOWNLOAD_URL"
@@ -80,7 +87,7 @@ jobs:
         run: |
           APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app"
           mkdir -p "$APP_DIR"
-          cp "go${{ github.event.inputs.version }}.linux-${{ matrix.goarch }}.tar.gz" "$APP_DIR/"
+          cp "go${{ steps.set_vars.outputs.upstream_version }}.linux-${{ matrix.goarch }}.tar.gz" "$APP_DIR/"
           echo "复制完成，app 目录内容："
           ls -la "$APP_DIR"
 
