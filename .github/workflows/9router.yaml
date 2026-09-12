@@ -163,11 +163,10 @@ jobs:
     name: 发布到 Fndepot Release
     needs: package
     if: always() && needs.package.result == 'success' && github.event.inputs.publish == 'true'
-    uses: ./.github/workflows/Publish-x86-arm.yaml
+    uses: ./.github/workflows/Publish.yaml
     with:
       app_name: ${{ needs.package.outputs.app_name }}
       manifest_version: ${{ needs.package.outputs.manifest_version }}
       changelog: ${{ needs.package.outputs.changelog }}
-      artifact_pattern: 'fpk-*'
     secrets:
       BUILDBOT: ${{ secrets.BUILDBOT }}
