@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Uptime Kuma 源码版本号（例如 2.2.1，不带 v）'
+        description: 'Uptime Kuma 源码版本号（例如 2.5.4）'
         required: true
         type: string
       manifest_version:
-        description: 'manifest 中的版本号（例如 2.2.1，可不同于源码版本）'
+        description: 'manifest 中的版本号（例如 2.5.4）'
         required: true
         type: string
       changelog:
@@ -152,11 +152,10 @@ jobs:
     name: 发布到 Fndepot Release（调用通用多架构发布工作流）
     needs: build
     if: always() && needs.build.result == 'success' && github.event.inputs.publish == 'true'
-    uses: ./.github/workflows/Publish-x86-arm.yaml
+    uses: ./.github/workflows/Publish.yaml
     with:
       app_name: ${{ needs.build.outputs.app_name }}
       manifest_version: ${{ needs.build.outputs.manifest_version }}
       changelog: ${{ needs.build.outputs.changelog }}
-      artifact_pattern: 'fpk-*'
     secrets:
       BUILDBOT: ${{ secrets.BUILDBOT }}
