@@ -1,0 +1,8 @@
+#!/bin/bash
+
+mkdir -p ${TRIM_PKGVAR}/auths
+if [ ! -f "${TRIM_PKGVAR}/config.json" ];then
+    mv ${TRIM_APPDEST}/config.example.json ${TRIM_PKGVAR}/config.json
+fi
+
+exit 0

@@ -1,0 +1,30 @@
+[
+  {
+    "stepTitle": "欢迎使用",
+    "items": [
+      {
+        "type": "text",
+        "field": "port",
+        "label": "端口",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "helpText": "默认面板：http://192.168.x.x:7863/panel，默认模型地址：http://127.0.0.1:7863/v1",
+        "initValue": "7863"
+      },
+      {
+        "type": "password",
+        "field": "pwd",
+        "label": "密码",
+        "rules": [],
+        "options": [],
+        "helpText": "面板鉴权和模型key均为该密码",
+        "initValue": ""
+      }
+    ]
+  }
+]
