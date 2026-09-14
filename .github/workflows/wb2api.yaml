@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '版本号（例如 1.0.0）'
+        description: '版本号（例如 1.6.3）'
         required: true
         type: string
       changelog:
@@ -104,6 +104,14 @@ jobs:
           echo "脚本复制完成，app/server 目录内容："
           ls -la "$APP_DIR"
           ls -la "$APP_DIR/scripts"
+
+      - name: 复制 config.example.json 到 app 目录
+        run: |
+          APP_ROOT="build_workspace/${{ steps.set_vars.outputs.app_name }}/app"
+          mkdir -p "$APP_ROOT"
+          cp wb2api-src/config.example.json "$APP_ROOT/"
+          echo "复制完成，app 目录内容："
+          ls -la "$APP_ROOT"
 
       - name: 修改 manifest 文件
         run: |
