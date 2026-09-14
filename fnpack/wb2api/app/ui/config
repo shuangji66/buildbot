@@ -12,7 +12,7 @@
       "gatewaySocket": "",
       "title": "workbuddy2api",
       "icon": "images/icon_{0}.png",
-      "type": "iframe",
+      "type": "url",
       "port": "${port}",
       "url": "/panel"
     }
