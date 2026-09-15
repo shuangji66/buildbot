@@ -108,12 +108,18 @@ jobs:
           CHANGELOG="${{ github.event.inputs.changelog }}"
           PACKAGES='${{ steps.fetch.outputs.packages }}'
 
+          # 生成 UTC 时间戳，ISO 8601 格式（例如 2026-09-07T11:14:03Z）
+          UPDATED_AT=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          echo "发布时间: $UPDATED_AT"
+
           jq --arg app "$APP_NAME" \
              --arg version "$VERSION" \
              --arg changelog "$CHANGELOG" \
+             --arg updated_at "$UPDATED_AT" \
              --argjson packages "$PACKAGES" \
              '.apps[$app].releases[$version] = {
                  "changelog": $changelog,
+                 "updated_at": $updated_at,
                  "packages": $packages
              }' fnpack.json > fnpack.json.tmp
           mv fnpack.json.tmp fnpack.json
