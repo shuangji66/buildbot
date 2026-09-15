@@ -10,7 +10,7 @@
       "protocol": "",
       "gatewayPrefix": "/app/Terminal",
       "gatewaySocket": "app.sock",
-      "title": "Terminal",
+      "title": "终端",
       "icon": "images/icon_{0}.png",
       "type": "iframe",
       "port": "",
