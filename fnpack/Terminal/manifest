@@ -1,6 +1,6 @@
 appname=Terminal
 version=${VERSION}
-display_name=Terminal
+display_name=终端
 desc="""<p>💻纯粹的本地终端。支持用户切换、标签页显示、快捷指令。</p>"""
 platform=${PLATFORM}
 source=thirdparty
