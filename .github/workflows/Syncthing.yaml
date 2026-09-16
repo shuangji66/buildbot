@@ -69,12 +69,22 @@ jobs:
           echo "解压完成，目录结构："
           find syncthing-extract -maxdepth 2 | head -30
 
-          # 定位 syncthing 二进制
-          SYNCTHING_BIN=$(find syncthing-extract -type f -name "syncthing" | head -1)
+          # 定位 syncthing 二进制：排除 etc 子目录，避免匹配到同名的服务/脚本文件
+          SYNCTHING_BIN=$(find syncthing-extract -path "*/etc" -prune -o -type f -name "syncthing" -print | head -1)
           if [ -z "$SYNCTHING_BIN" ]; then
             echo "错误：未在解压目录中找到 syncthing 二进制"
             exit 1
           fi
+
+          # 进一步验证是 ELF 二进制而非脚本
+          FILE_TYPE=$(file -b "$SYNCTHING_BIN")
+          echo "候选文件: $SYNCTHING_BIN"
+          echo "文件类型: $FILE_TYPE"
+          if ! echo "$FILE_TYPE" | grep -qi "ELF"; then
+            echo "错误：$SYNCTHING_BIN 不是 ELF 二进制文件，可能匹配到了脚本"
+            exit 1
+          fi
+
           cp "$SYNCTHING_BIN" syncthing
           chmod +x syncthing
           echo "提取完成："
