@@ -1,0 +1,21 @@
+[
+  {
+    "stepTitle": "欢迎使用",
+    "items": [
+      {
+        "type": "text",
+        "field": "ui_port",
+        "label": "Komari服务端口",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "helpText": "同时为Komari-Agent监听端口",
+        "initValue": "8633"
+      }
+    ]
+  }
+]

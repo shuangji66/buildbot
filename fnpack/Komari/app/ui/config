@@ -1,0 +1,20 @@
+{
+  ".url": {
+    "Komari.Application": {
+      "noDisplay": false,
+      "allUsers": false,
+      "fileTypes": [],
+      "control": {
+        "accessPerm": "editable"
+      },
+      "protocol": "http",
+      "gatewayPrefix": "",
+      "gatewaySocket": "",
+      "title": "Komari",
+      "icon": "images/icon_{0}.png",
+      "type": "iframe",
+      "port": "${ui_port}",
+      "url": ""
+    }
+  }
+}

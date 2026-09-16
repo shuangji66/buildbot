@@ -1,0 +1,105 @@
+[
+  {
+    "stepTitle": "运行设置",
+    "items": [
+      {
+        "type": "text",
+        "field": "komari_addr",
+        "label": "Komari服务器地址",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "initValue": "http://127.0.0.1:8633"
+      },
+      {
+        "type": "text",
+        "field": "auto_screct",
+        "label": "自动发现密钥",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "helpText": "前往Komari面板>设置>通用，生成自动发现密钥",
+        "initValue": ""
+      },
+      {
+        "type": "select",
+        "field": "webssh_mode",
+        "label": "webssh",
+        "rules": [],
+        "options": [
+          {
+            "label": "关闭",
+            "value": "0"
+          },
+          {
+            "label": "开启",
+            "value": "1"
+          }
+        ],
+        "helpText": "默认关闭web终端，安全访问环境下按需开启",
+        "initValue": "0"
+      },
+      {
+        "type": "text",
+        "field": "interval_time",
+        "label": "数据上报间隔（秒）",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "helpText": "不要设置过小增加服务器压力",
+        "initValue": "5"
+      },
+      {
+        "type": "text",
+        "field": "max_retries",
+        "label": "最大重试次数",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "initValue": "5"
+      },
+      {
+        "type": "text",
+        "field": "reconnect_interval",
+        "label": "重连间隔（秒）",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "initValue": "10"
+      },
+      {
+        "type": "text",
+        "field": "report_interval",
+        "label": "基础信息上报间隔（分钟）",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "initValue": "15"
+      }
+    ]
+  }
+]

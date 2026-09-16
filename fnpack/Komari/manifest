@@ -1,0 +1,16 @@
+appname=Komari
+version=${VERSION}
+display_name=Komari
+desc="""<p>📈Komari是一款轻量级的自托管服务器监控工具，旨在提供简单、高效的服务器性能监控解决方案。它支持通过Web界面查看服务器状态，并通过轻量级Agent收集数据。</p><p>⭐使用说明：完成用户初始化设置，进入面板>设置>通用，生成自动发现密钥，复制后填入Komari-Agent相关设置。</p>"""
+platform=${PLATFORM}
+source=thirdparty
+maintainer=komari-monitor
+maintainer_url=https://github.com/komari-monitor/komari
+distributor=shuangji66
+distributor_url=https://github.com/shuangji66/FnDepot
+ctl_stop=true
+desktop_uidir=ui
+desktop_applaunchname=Komari.Application
+checkport=false
+disable_authorization_path=false
+changelog=${CHANGELOG}

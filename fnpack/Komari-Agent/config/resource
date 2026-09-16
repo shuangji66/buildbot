@@ -1,0 +1,14 @@
+{
+  "data-share": {
+    "shares": [
+      {
+        "name": "Komari-Agent",
+        "permission": {
+          "rw": [
+            "Komari-Agent"
+          ]
+        }
+      }
+    ]
+  }
+}
