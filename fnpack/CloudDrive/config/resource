@@ -1,0 +1,22 @@
+{
+  "data-share": {
+    "shares": [
+      {
+        "name": "CloudDrive",
+        "permission": {
+          "rw": [
+            "CloudDrive"
+          ]
+        }
+      },
+      {
+        "name": "CloudDrive/Waytech",
+        "permission": {
+          "rw": [
+            "CloudDrive"
+          ]
+        }
+      }
+    ]
+  }
+}

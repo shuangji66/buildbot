@@ -1,0 +1,21 @@
+[
+  {
+    "stepTitle": "欢迎使用",
+    "items": [
+      {
+        "type": "text",
+        "field": "ui_port",
+        "label": "飞牛入口端口",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "helpText": "默认为CloudDrive的http端口，先在CloudDrive内修改端口，再修改此处飞牛入口端口；CloudDrive启用https访问亦可修改为https端口",
+        "initValue": "19798"
+      }
+    ]
+  }
+]
