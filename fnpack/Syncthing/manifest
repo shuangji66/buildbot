@@ -1,0 +1,16 @@
+appname=Syncthing
+version=${VERSION}
+display_name=Syncthing
+desc="""<p>📂Syncthing 是一种持续性的文件同步程序。它能够实时地将文件同步到两台或更多的计算机上，同时完全保护数据不被他人窥探。</p><p>⭐使用说明：安装后建议tls安全反代并且开启面板账户密码登录。默认同步目录为"应用文件/Syncthing"。</p>"""
+platform=${PLATFORM}
+source=thirdparty
+maintainer=syncthing
+maintainer_url=https://github.com/syncthing/syncthing
+distributor=shuangji66
+distributor_url=https://github.com/shuangji66/FnDepot
+ctl_stop=true
+desktop_uidir=ui
+desktop_applaunchname=Syncthing.Application
+checkport=false
+disable_authorization_path=false
+changelog=${CHANGELOG}
