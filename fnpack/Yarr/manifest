@@ -1,0 +1,16 @@
+appname=Yarr
+version=${VERSION}
+display_name=Yarr
+desc="""<p>📰基于Web的RSS阅读器，可作桌面应用或自托管服务器使用。</p>"""
+platform=${PLATFORM}
+source=thirdparty
+maintainer=nkanaev
+maintainer_url=https://github.com/nkanaev/yarr
+distributor=shuangji66
+distributor_url=https://github.com/shuangji66/FnDepot
+ctl_stop=true
+desktop_uidir=ui
+desktop_applaunchname=Yarr.Application
+checkport=false
+disable_authorization_path=false
+changelog=${CHANGELOG}

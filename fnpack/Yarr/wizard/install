@@ -1,0 +1,52 @@
+[
+  {
+    "stepTitle": "欢迎使用",
+    "items": [
+      {
+        "type": "select",
+        "field": "mode",
+        "label": "访问方式",
+        "rules": [],
+        "options": [
+          {
+            "label": "统一网关",
+            "value": "0"
+          },
+          {
+            "label": "端口访问",
+            "value": "1"
+          }
+        ],
+        "helpText": "默认统一网关访问，端口访问时飞牛入口失效。",
+        "initValue": "0"
+      },
+      {
+        "type": "text",
+        "field": "username",
+        "label": "用户名",
+        "rules": [],
+        "options": [],
+        "helpText": "端口访问时需设置用户名",
+        "initValue": ""
+      },
+      {
+        "type": "password",
+        "field": "password",
+        "label": "密码",
+        "rules": [],
+        "options": [],
+        "helpText": "端口访问时需设置用户密码",
+        "initValue": ""
+      },
+      {
+        "type": "text",
+        "field": "port",
+        "label": "端口",
+        "rules": [],
+        "options": [],
+        "helpText": "端口访问时需设置端口",
+        "initValue": "7470"
+      }
+    ]
+  }
+]

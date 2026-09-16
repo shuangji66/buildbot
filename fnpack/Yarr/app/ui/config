@@ -1,0 +1,20 @@
+{
+  ".url": {
+    "Yarr.Application": {
+      "noDisplay": false,
+      "allUsers": false,
+      "fileTypes": [],
+      "control": {
+        "accessPerm": "editable"
+      },
+      "protocol": "",
+      "gatewayPrefix": "/app/Yarr",
+      "gatewaySocket": "app.sock",
+      "title": "Yarr",
+      "icon": "images/icon_{0}.png",
+      "type": "iframe",
+      "port": "",
+      "url": "/app/Yarr"
+    }
+  }
+}
