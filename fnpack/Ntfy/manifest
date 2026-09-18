@@ -1,0 +1,16 @@
+appname=Ntfy
+version=${VERSION}
+display_name=Ntfy
+desc="""<p>✉️NTFY 允许你通过脚本从任何计算机向手机或桌面设备发送推送通知。</p>"""
+platform=${PLATFORM}
+source=thirdparty
+maintainer=binwiederhier
+maintainer_url=https://github.com/binwiederhier/ntfy
+distributor=shuangji66
+distributor_url=https://github.com/shuangji66/FnDepot
+ctl_stop=true
+desktop_uidir=ui
+desktop_applaunchname=Ntfy.Application
+checkport=false
+disable_authorization_path=false
+changelog=${CHANGELOG}

@@ -1,0 +1,77 @@
+[
+  {
+    "stepTitle": "欢迎使用",
+    "items": [
+      {
+        "type": "text",
+        "field": "port",
+        "label": "端口",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "initValue": "8646"
+      },
+      {
+        "type": "text",
+        "field": "duration",
+        "label": "消息缓存时间",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "helpText": "0为禁用缓存，单位s;m;h;d",
+        "initValue": "12h"
+      },
+      {
+        "type": "text",
+        "field": "admin_name",
+        "label": "管理账户",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "initValue": ""
+      },
+      {
+        "type": "password",
+        "field": "admin_password",
+        "label": "管理密码",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "initValue": ""
+      },
+      {
+        "type": "select",
+        "field": "sign_up",
+        "label": "开放注册",
+        "rules": [],
+        "options": [
+          {
+            "label": "否",
+            "value": "false"
+          },
+          {
+            "label": "是",
+            "value": "true"
+          }
+        ],
+        "initValue": "false"
+      }
+    ]
+  }
+]

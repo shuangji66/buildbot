@@ -1,0 +1,9 @@
+#!/bin/bash
+export NTFY_AUTH_FILE="${TRIM_PKGVAR}/user.db"
+export NTFY_PASSWORD="$admin_password"
+
+touch ${TRIM_PKGVAR}/user.db
+cd ${TRIM_APPDEST}/bin
+./ntfy user add --role=admin $admin_name
+
+exit 0
