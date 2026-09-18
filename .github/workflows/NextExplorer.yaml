@@ -97,8 +97,6 @@ jobs:
       - name: 构建 NextExplorer前端
         run: |
           cp -r nextexplorer-src/frontend/* temp/frontend/
-          # rm -f temp/frontend/src/i18n/index.js
-          # mv build_workspace/NextExplorer/index.js temp/frontend/src/i18n/
           cd temp
           npm run -w frontend build -- --sourcemap false
 
