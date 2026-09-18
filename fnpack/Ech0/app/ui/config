@@ -1,0 +1,20 @@
+{
+  ".url": {
+    "Ech0.Application": {
+      "noDisplay": false,
+      "allUsers": false,
+      "fileTypes": [],
+      "control": {
+        "accessPerm": "editable"
+      },
+      "protocol": "",
+      "gatewayPrefix": "",
+      "gatewaySocket": "",
+      "title": "Ech0",
+      "icon": "images/icon_{0}.png",
+      "type": "iframe",
+      "port": "${port}",
+      "url": ""
+    }
+  }
+}
