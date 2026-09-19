@@ -3,10 +3,15 @@ name: Build MrRSS and Release
 on:
   workflow_dispatch:
     inputs:
-      manifest_version:
-        description: 'manifest 中的版本号（例如 1.3.33）'
+      version:
+        description: '上游版本号（例如 1.3.36，不带 v）'
         required: true
         type: string
+      manifest_version:
+        description: 'manifest 中的版本号（留空则与上游版本号一致）'
+        required: false
+        type: string
+        default: ''
       changelog:
         description: '更新日志（支持中文）'
         required: true
@@ -24,10 +29,10 @@ jobs:
         include:
           - os: ubuntu-24.04
             platform: x86
-            goarch: amd64
+            asset_arch: amd64
           - os: ubuntu-24.04-arm
             platform: arm
-            goarch: arm64
+            asset_arch: arm64
     runs-on: ${{ matrix.os }}
     outputs:
       app_name: ${{ steps.set_vars.outputs.app_name }}
@@ -38,49 +43,49 @@ jobs:
         id: set_vars
         run: |
           APP_NAME="MrRSS"
+          VERSION="${{ github.event.inputs.version }}"
           MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          # 未填写 manifest_version 时，回退使用上游版本号
+          if [ -z "$MANIFEST_VERSION" ]; then
+            MANIFEST_VERSION="$VERSION"
+          fi
           CHANGELOG="${{ github.event.inputs.changelog }}"
           echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "upstream_version=$VERSION" >> $GITHUB_OUTPUT
           echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
           echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "上游版本: $VERSION"
+          echo "manifest 版本: $MANIFEST_VERSION"
 
-      - name: 安装 Node.js 24
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
+      - name: 下载并解压 MrRSS（${{ matrix.platform }}）
+        run: |
+          VERSION="${{ steps.set_vars.outputs.upstream_version }}"
+          ASSET_ARCH="${{ matrix.asset_arch }}"
+          DOWNLOAD_URL="https://github.com/DevXDojo/MrRSS/releases/download/v${VERSION}/MrRSS-${VERSION}-linux-${ASSET_ARCH}.tar.gz"
+          echo "下载地址: $DOWNLOAD_URL"
+          curl -fL "$DOWNLOAD_URL" -o mrss.tar.gz
+          mkdir -p mrss-extract
+          tar -xzf mrss.tar.gz -C mrss-extract
+          echo "解压完成，目录内容："
+          ls -la mrss-extract/
 
-      - name: 安装 Go 1.27
-        uses: actions/setup-go@v7
-        with:
-          go-version: '1.27'
+          # 压缩包仅含 MrRSS 一个文件，直接提取
+          if [ ! -f "mrss-extract/MrRSS" ]; then
+            echo "错误：未在解压目录中找到 MrRSS 文件"
+            exit 1
+          fi
+          cp mrss-extract/MrRSS MrRSS
+          chmod +x MrRSS
+          echo "提取完成："
+          ls -la MrRSS
+          file MrRSS
 
-      - name: 检出 buildbot 仓库（包含模板）
+      - name: 检出 buildbot 仓库
         uses: actions/checkout@v7
         with:
           path: buildbot_repo
 
-      - name: 克隆 MrRSS 源码
-        uses: actions/checkout@v7
-        with:
-          repository: WCY-dt/MrRSS
-          path: mrss-src
-
-      - name: 构建前端（frontend）
-        working-directory: ./mrss-src/frontend
-        run: |
-          npm install
-          npm run build
-
-      - name: 构建 Go 后端
-        working-directory: ./mrss-src
-        run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} go build \
-            -tags server \
-            -trimpath \
-            -ldflags="-s -w" \
-            -o MrRSS
-
-      - name: 准备 fnpack 工作区
+      - name: 准备 fnpack 工具和模板
         run: |
           mkdir -p build_workspace
           cp -r "buildbot_repo/fnpack/${{ steps.set_vars.outputs.app_name }}" build_workspace/
@@ -92,11 +97,14 @@ jobs:
           cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
           chmod +x build_workspace/fnpack
 
-      - name: 复制产物到 app/bin
+      - name: 复制二进制到 app/bin 目录
         run: |
-          mkdir -p build_workspace/MrRSS/app/bin
-          cp mrss-src/MrRSS build_workspace/MrRSS/app/bin/
-          chmod +x build_workspace/MrRSS/app/bin/MrRSS
+          APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app"
+          mkdir -p "$APP_DIR/bin"
+          cp MrRSS "$APP_DIR/bin/"
+          chmod +x "$APP_DIR/bin/MrRSS"
+          echo "复制完成，app/bin 目录内容："
+          ls -la "$APP_DIR/bin"
 
       - name: 修改 manifest 文件
         run: |
@@ -107,6 +115,7 @@ jobs:
           fi
           MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
           CHANGELOG="${{ steps.set_vars.outputs.changelog }}"
+          sudo apt-get update && sudo apt-get install -y jq
           ESCAPED_CHANGELOG=$(printf '%s' "$CHANGELOG" | jq -sRr @json)
           sed -i "s/\${VERSION}/$MANIFEST_VERSION/g" "$MANIFEST_PATH"
           sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
