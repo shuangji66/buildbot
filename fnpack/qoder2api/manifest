@@ -1,0 +1,14 @@
+appname=qoder2api
+version=${VERSION}
+display_name=qoder2api
+desc="""<p>🔧这是一个 Go 语言编写的 HTTP 服务器，它提供了 Qoder 编码代理后端，可以作为与 OpenAI 兼容的端点使用——支持流式传输和非流式传输两种方式。</p>"""
+platform=${PLATFORM}
+source=thirdparty
+maintainer=bincooo
+maintainer_url=https://github.com/bincooo/qoder2api
+distributor=shuangji66
+distributor_url=https://github.com/shuangji66/FnDepot
+ctl_stop=true
+checkport=false
+disable_authorization_path=true
+changelog=${CHANGELOG}

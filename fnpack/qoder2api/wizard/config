@@ -1,0 +1,51 @@
+[
+  {
+    "stepTitle": "欢迎使用",
+    "items": [
+      {
+        "type": "text",
+        "field": "port",
+        "label": "绑定端口",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "initValue": "8963"
+      },
+      {
+        "type": "select",
+        "field": "host",
+        "label": "监听地址",
+        "rules": [],
+        "options": [
+          {
+            "label": "仅本机",
+            "value": "127.0.0.1"
+          },
+          {
+            "label": "局域网",
+            "value": "0.0.0.0"
+          }
+        ],
+        "helpText": "仅本机为127.0.0.1；局域网为0.0.0.0；推荐仅本机保持安全",
+        "initValue": "127.0.0.1"
+      },
+      {
+        "type": "text",
+        "field": "token",
+        "label": "Qoder的PAT令牌",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "initValue": ""
+      }
+    ]
+  }
+]
