@@ -4,17 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       harness_version:
-        description: 'Harness 二进制版本号（例如 1.0.0，将注入到二进制中）'
+        description: 'Harness 二进制版本号（例如 1.2.1，将注入到二进制中）'
         required: true
         type: string
-        default: '1.1.7'
+        default: '1.2.1'
       dsh_version:
-        description: 'dsh 包版本（例如 0.1.2-rc.1，或 latest）'
+        description: 'dsh 包版本（例如 0.1.6-alpha.2，或 latest）'
         required: true
-        default: '0.1.6-alpha.1'
+        default: '0.1.6-alpha.2'
         type: string
       manifest_version:
-        description: 'manifest 中的版本号（例如 0.9.3）'
+        description: 'manifest 中的版本号（例如 0.9.6）'
         required: true
         type: string
       changelog:
