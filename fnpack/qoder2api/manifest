@@ -1,7 +1,7 @@
 appname=qoder2api
 version=${VERSION}
 display_name=qoder2api
-desc="""<p>🔧这是一个 Go 语言编写的 HTTP 服务器，它提供了 Qoder 编码代理后端，可以作为与 OpenAI 兼容的端点使用——支持流式传输和非流式传输两种方式。</p>"""
+desc="""<p>🔧Qoder2API是一个Go编写的HTTP服务器，它对Qoder编码智能体后端进行逆向工程，并将其重新暴露为一个OpenAI兼容的/v1/chat/completions端点（同时支持流式 SSE 和非流式 JSON）。</p>"""
 platform=${PLATFORM}
 source=thirdparty
 maintainer=bincooo
