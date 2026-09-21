@@ -1,5 +1,5 @@
 name: Build MrRSS and Release
-
+# 成品二进制是桌面版，服务器版需要-tags server
 on:
   workflow_dispatch:
     inputs:
