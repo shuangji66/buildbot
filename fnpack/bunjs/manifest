@@ -1,10 +1,10 @@
 appname=bunjs
 version=${VERSION}
 display_name=Bun
-desc=""""🔧Bun 是一个快速、现代、跨平台的 JavaScript 运行时环境，允许开发人员创建服务器、Web 应用程序、命令行工具和脚本。链接至系统环境，可全局调用。""""
+desc="""🔧Bun 是一个快速、现代、跨平台的 JavaScript 运行时环境，允许开发人员创建服务器、Web 应用程序、命令行工具和脚本。链接至系统环境，可全局调用。"""
 platform=${PLATFORM}
 source=thirdparty
-maintainer=bun
+maintainer=oven-sh
 maintainer_url=https://bun.com/
 distributor=shuangji66
 distributor_url=https://github.com/shuangji66/FnDepot
