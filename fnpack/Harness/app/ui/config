@@ -24,13 +24,13 @@
         "accessPerm": "editable"
       },
       "protocol": "",
-      "gatewayPrefix": "",
-      "gatewaySocket": "",
+      "gatewayPrefix": "/app/Harness/dsh",
+      "gatewaySocket": "dsh.sock",
       "title": "DeepSeek Harness",
       "icon": "images/dsh_{0}.png",
       "type": "iframe",
-      "port": "${port}",
-      "url": ""
+      "port": "",
+      "url": "/app/Harness/dsh"
     }
   }
 }
