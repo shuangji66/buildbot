@@ -1,7 +1,7 @@
 appname=Harness
 version=${VERSION}
 display_name=Harness
-desc="""<p>🐋DeepSeek Harness懒人包，内置插件市场，控制台支持本地终端、插件管理、授权飞牛目录。</p><p>⭐使用说明：建议反代后开启登录鉴权或局域网本地访问。插件故障导致启动失败可在控制台停用或卸载插件。</p>"""
+desc="""<p>🐋DeepSeek Harness懒人包，内置插件市场，控制台支持本地终端、插件管理、授权飞牛目录，支持网关访问+端口访问双入口。</p><p>⭐使用说明：端口访问建议开启鉴权。插件故障导致启动失败可在控制台停用或卸载插件。</p>"""
 platform=${PLATFORM}
 source=thirdparty
 maintainer=DeepSeek
