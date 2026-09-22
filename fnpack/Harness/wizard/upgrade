@@ -3,18 +3,12 @@
     "stepTitle": "欢迎使用",
     "items": [
       {
-        "type": "text",
-        "field": "port",
-        "label": "访问端口",
-        "rules": [
-          {
-            "required": true,
-            "message": "请输入内容"
-          }
-        ],
+        "type": "tips",
+        "field": "wizard_default",
+        "label": "示例项",
+        "rules": [],
         "options": [],
-        "helpText": "支持http访问，外网访问建议反代并开启鉴权",
-        "initValue": "3079"
+        "helpText": "0.1.7-alpha.1起支持飞牛网关访问，现飞牛入口已切换至网关访问，保留端口访问功能"
       }
     ]
   }
