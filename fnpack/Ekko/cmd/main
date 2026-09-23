@@ -1,5 +1,5 @@
 #!/bin/bash
-export PATH=/var/apps/nodejs_v24/target/bin:$PATH
+export PATH=${TRIM_APPDEST}/node/bin:$PATH
 export PATH=${TRIM_APPDEST}/server/bin:$PATH
 export HOME="${TRIM_DATA_SHARE_PATHS%%:*}"
 
