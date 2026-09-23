@@ -4,4 +4,8 @@ cd ${TRIM_APPDEST}
 tar -xzf server.tar.gz
 rm -rf server.tar.gz
 
+cd ${TRIM_APPDEST}/node
+tar -xf node.tar.xz --strip-components=1
+rm -f node.tar.xz
+
 exit 0
