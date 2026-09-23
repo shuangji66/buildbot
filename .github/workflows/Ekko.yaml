@@ -21,6 +21,11 @@ on:
         required: false
         type: string
         default: 'latest'
+      node_version:
+        description: 'Node.js 版本号（例如 24.21.0，不带 v）'
+        required: false
+        type: string
+        default: '24.21.0'
 
 jobs:
   # 第一步：在 Debian 12 容器中安装 Ekko 并压缩 server 目录
@@ -85,8 +90,10 @@ jobs:
         include:
           - os: ubuntu-24.04
             platform: x86
+            node_arch: x64
           - os: ubuntu-24.04-arm
             platform: arm
+            node_arch: arm64
     outputs:
       app_name: ${{ steps.set_vars.outputs.app_name }}
       manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
@@ -104,6 +111,17 @@ jobs:
         with:
           name: server-${{ matrix.platform }}
           path: ./server_artifact
+
+      - name: 下载 Node.js 压缩包（${{ matrix.platform }}）
+        run: |
+          NODE_VERSION="${{ github.event.inputs.node_version }}"
+          NODE_ARCH="${{ matrix.node_arch }}"
+          DOWNLOAD_URL="https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz"
+          echo "下载地址: $DOWNLOAD_URL"
+          curl -fL "$DOWNLOAD_URL" -o node.tar.xz
+          echo "下载完成："
+          ls -la node.tar.xz
+          file node.tar.xz
 
       - name: 检出 buildbot 仓库（包含 fnpack 模板）
         uses: actions/checkout@v7
@@ -126,6 +144,14 @@ jobs:
         run: |
           mkdir -p build_workspace/Ekko/app
           cp ./server_artifact/server.tar.gz build_workspace/Ekko/app/
+
+      - name: 复制 node.tar.xz 到 app/node 目录
+        run: |
+          APP_DIR="build_workspace/Ekko/app/node"
+          mkdir -p "$APP_DIR"
+          cp node.tar.xz "$APP_DIR/"
+          echo "复制完成，app/node 目录内容："
+          ls -la "$APP_DIR"
 
       - name: 修改 manifest 文件
         run: |
