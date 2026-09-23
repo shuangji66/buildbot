@@ -145,10 +145,9 @@ jobs:
           mkdir -p build_workspace/Ekko/app
           cp ./server_artifact/server.tar.gz build_workspace/Ekko/app/
 
-      - name: 复制 node.tar.xz 到 app/node 目录
+      - name: 复制 node.tar.xz 到 app 目录
         run: |
-          APP_DIR="build_workspace/Ekko/app/node"
-          mkdir -p "$APP_DIR"
+          APP_DIR="build_workspace/Ekko/app"
           cp node.tar.xz "$APP_DIR/"
           echo "复制完成，app/node 目录内容："
           ls -la "$APP_DIR"
