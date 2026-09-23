@@ -1,5 +1,5 @@
 #!/bin/bash
-export PATH=${TRIM_APPDEST}/node/bin:$PATH
+export PATH=${TRIM_PKGVAR}/node/bin:$PATH
 export PATH=${TRIM_APPDEST}/server/bin:$PATH
 export HOME="${TRIM_DATA_SHARE_PATHS%%:*}"
 
