@@ -3,11 +3,13 @@
 cd ${TRIM_APPDEST}
 tar -xzf server.tar.gz
 rm -rf server.tar.gz
-mkdir -p ${TRIM_PKGVAR}/node
-mv node.tar.xz ${TRIM_PKGVAR}/node/node.tar.xz
+if [ ! -f "${TRIM_PKGVAR}/node/bin/node" ]; then
+    mkdir -p ${TRIM_PKGVAR}/node
+    mv ${TRIM_APPDEST}/node.tar.xz ${TRIM_PKGVAR}/node/node.tar.xz
 
-cd ${TRIM_PKGVAR}/node
-tar -xf node.tar.xz --strip-components=1
-rm -f node.tar.xz
+    cd ${TRIM_PKGVAR}/node
+    tar -xf node.tar.xz --strip-components=1
+    rm -f node.tar.xz
+fi
 
 exit 0
