@@ -1,0 +1,20 @@
+{
+  ".url": {
+    "Ekko.Application": {
+      "noDisplay": false,
+      "allUsers": false,
+      "fileTypes": [],
+      "control": {
+        "accessPerm": "editable"
+      },
+      "protocol": "http",
+      "gatewayPrefix": "",
+      "gatewaySocket": "",
+      "title": "Ekko Studio",
+      "icon": "images/icon_{0}.png",
+      "type": "url",
+      "port": "${port}",
+      "url": ""
+    }
+  }
+}

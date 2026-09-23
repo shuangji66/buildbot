@@ -1,0 +1,14 @@
+{
+  "data-share": {
+    "shares": [
+      {
+        "name": "Ekko",
+        "permission": {
+          "rw": [
+            "Ekko"
+          ]
+        }
+      }
+    ]
+  }
+}
