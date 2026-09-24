@@ -1,8 +1,7 @@
 #!/bin/bash
-export PATH=/var/apps/nodejs_v24/target/bin:$PATH
+export PATH=${TRIM_PKGVAR}/node/bin:$PATH
 export PATH=${TRIM_APPDEST}/server/bin:$PATH
 export HERMES_BIN=${TRIM_APPDEST}/server/lib/node_modules/hermes-agent/runtime/hermes-agent/venv/bin/hermes
-export HERMES_AGENT_BRIDGE_UV=${TRIM_APPDEST}/server/lib/node_modules/hermes-agent/.uv_bin/uv
 export HOME="${TRIM_DATA_SHARE_PATHS%%:*}"
 
 LOG_FILE="${TRIM_PKGVAR}/info.log"
