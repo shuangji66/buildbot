@@ -1,15 +1,25 @@
 #!/bin/bash
-
+# 构建时设置node更新标记，0不更新，1需要更新
+NODE_UPGRADE=${node_upgrade}
+# 部署server包
 cd ${TRIM_APPDEST}
 tar -xzf server.tar.gz
 rm -rf server.tar.gz
+# 部署node环境
 if [ ! -f "${TRIM_PKGVAR}/node/bin/node" ]; then
     mkdir -p ${TRIM_PKGVAR}/node
     mv ${TRIM_APPDEST}/node.tar.xz ${TRIM_PKGVAR}/node/node.tar.xz
-
     cd ${TRIM_PKGVAR}/node
     tar -xf node.tar.xz --strip-components=1
     rm -f node.tar.xz
+else
+    if [ "${NODE_UPGRADE}" = "1" ]; then
+        mv ${TRIM_APPDEST}/node.tar.xz ${TRIM_PKGVAR}/node/node.tar.xz
+        cd ${TRIM_PKGVAR}/node
+        tar -xf node.tar.xz --strip-components=1
+        rm -f node.tar.xz
+    fi
+    rm -f ${TRIM_APPDEST}/node.tar.xz
 fi
 
 exit 0
