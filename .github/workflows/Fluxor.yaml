@@ -4,7 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       manifest_version:
-        description: 'manifest 中的版本号（例如 1.0.0）'
+        description: 'manifest 中的版本号（例如 2.5.2）'
+        required: true
+        type: string
+      version:
+        description: '注入二进制的版本号（例如 1.7.1）'
         required: true
         type: string
       changelog:
@@ -55,45 +59,50 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y wget curl jq unzip
 
-      - name: 克隆 fluxor 源码
-        run: |
-          git clone https://github.com/shuangji66/fluxor.git fluxor-src
-          ls -la fluxor-src
+      - name: 检出 fluxor 源码
+        uses: actions/checkout@v7
+        with:
+          repository: shuangji66/fluxor
+          path: fluxor-src
 
       - name: 设置 Node.js 环境
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: 'npm'
-          cache-dependency-path: fluxor-src/web/package-lock.json
+          cache-dependency-path: fluxor-src/frontend/package-lock.json
 
       - name: 设置 Go 环境
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
-          go-version: '1.26'
+          go-version: '1.27'
 
-      - name: 修改 package.json 版本号（追加 commit 哈希）
+      - name: 清理旧构建产物
         run: |
-          cd fluxor-src
-          HASH=$(git rev-parse --short HEAD)
-          VERSION=$(jq -r '.version' web/package.json)
-          NEW_VERSION="${VERSION}~${HASH}"
-          jq --arg new "$NEW_VERSION" '.version = $new' web/package.json > web/package.json.tmp && mv web/package.json.tmp web/package.json
-          echo "新版本号: $NEW_VERSION"
+          rm -rf fluxor-src/frontend/dist fluxor-src/backend/dist
 
-      - name: 构建前端 (web)
-        working-directory: ./fluxor-src/web
+      - name: 构建前端 (frontend → frontend/dist)
+        working-directory: ./fluxor-src/frontend
         run: |
           npm ci
           npm run build
 
-      - name: 构建 Go 后端（指定 GOARCH）
-        working-directory: ./fluxor-src
+      - name: 同步前端构建产物到 backend/dist
         run: |
-          GOOS=linux GOARCH=${{ matrix.goarch }} go build -tags vue -ldflags="-s -w" -o fluxor-${{ matrix.goarch }}
+          rm -rf fluxor-src/backend/dist
+          cp -r fluxor-src/frontend/dist fluxor-src/backend/dist
+
+      - name: 构建 Go 后端（${{ matrix.goarch }}，注入版本号）
+        working-directory: ./fluxor-src/backend
+        run: |
+          GOOS=linux GOARCH=${{ matrix.goarch }} CGO_ENABLED=0 \
+            go build -ldflags="-s -w -X fluxor/internal/buildinfo.Version=${{ github.event.inputs.version }}" \
+            -o ../fluxor-${{ matrix.goarch }}
+          ls -la ../fluxor-${{ matrix.goarch }}
+          file ../fluxor-${{ matrix.goarch }}
 
       - name: 检出 buildbot 仓库
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           path: buildbot_repo
 
@@ -115,8 +124,10 @@ jobs:
       - name: 复制 fluxor 二进制到 app_tmp/bin（带架构后缀）
         run: |
           APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app"
-          cp fluxor-src/fluxor-${{ matrix.goarch }} "$APP_DIR/app_tmp/bin/"
+          cp "fluxor-src/fluxor-${{ matrix.goarch }}" "$APP_DIR/app_tmp/bin/"
           chmod +x "$APP_DIR/app_tmp/bin/fluxor-${{ matrix.goarch }}"
+          echo "app_tmp/bin 目录内容："
+          ls -la "$APP_DIR/app_tmp/bin/"
 
       - name: 下载 geosite.dat 和 geoip.dat
         run: |
