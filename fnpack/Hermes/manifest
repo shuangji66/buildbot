@@ -1,7 +1,7 @@
 appname=Hermes
 version=${VERSION}
 display_name=Hermes Studio
-desc="""<p>🐴面向Hermes Agent的本地运行时和Web控制台。Agent对话、可视化工作流、模型与 Profile 管理、网页浏览、Coding Agent和本地运行环境都在一个界面中完成。</p><p>⭐使用说明：默认工作区"应用文件/Hermes/.hermes/workspace"，添加其他目录需设置相应权限。建议在Agent管理中关闭Ekko和Hermes不需要的MCP服务降低内存占用。</p>"""
+desc="""<p>🐴内置Hermes Agent的Ekko Studio。汇聚多种 AI 智能体的统一工作空间，覆盖桌面端、移动端与 Web 端。与不同智能体对话，让它们协作完成任务，搭建可视化工作流、管理模型和配置，并在不同设备间延续你的工作。</p><p>⭐使用说明：内置nodejs24，按需添加agent协同工作，不可与Ekko Studio同时启用Hermes-agent。建议在Agent管理中关闭不需要的MCP服务降低内存占用。</p>"""
 platform=${PLATFORM}
 source=thirdparty
 maintainer=EKKOLearnAI
@@ -9,7 +9,6 @@ maintainer_url=https://github.com/EKKOLearnAI/hermes-studio
 distributor=shuangji66
 distributor_url=https://github.com/shuangji66/FnDepot
 ctl_stop=true
-install_dep_apps=nodejs_v24
 desktop_uidir=ui
 desktop_applaunchname=Hermes.Application
 checkport=false
