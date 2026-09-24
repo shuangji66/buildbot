@@ -11,8 +11,8 @@ jobs:
         include:
           - arch: amd64
             runner: ubuntu-22.04
-          #- arch: arm64
-          #  runner: ubuntu-22.04-arm
+          - arch: arm64
+            runner: ubuntu-22.04-arm
 
     steps:
       - name: Install build dependencies
