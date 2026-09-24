@@ -7,6 +7,7 @@ jobs:
   build:
     runs-on: ${{ matrix.runner }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: amd64
@@ -32,11 +33,28 @@ jobs:
           WORKDIR="${{ github.workspace }}/tvheadend"
           git clone https://github.com/tvheadend/tvheadend.git "$WORKDIR"
           cd "$WORKDIR"
-          
+
+          # tvheadend 静态 ffmpeg 依赖里的 libtheora-1.2.0alpha1 自带 2003-10-03 的
+          # config.guess，认不出 aarch64（错误里那几行 UNAME_* 就是它打印的），
+          # 于是 configure 报 "cannot guess build type; you must specify one"。
+          # autoconf 在猜测 build/host/target 之前会先加载 $CONFIG_SITE，
+          # 直接在里面给出三元组即可绕开那个过期脚本（本地三元组 = 原生编译）。
+          if [ -x /usr/share/misc/config.guess ]; then
+            TRIPLET="$(/usr/share/misc/config.guess)"
+          else
+            TRIPLET="$(uname -m)-unknown-linux-gnu"
+          fi
+          SITE="$RUNNER_TEMP/config.site"
+          printf 'build_alias=%s\nhost_alias=%s\ntarget_alias=%s\n' \
+            "$TRIPLET" "$TRIPLET" "$TRIPLET" > "$SITE"
+          export CONFIG_SITE="$SITE"
+          echo "CONFIG_SITE=$SITE"; cat "$SITE"
+
           ./configure --prefix=/var/apps/Tvheadend/target
           make -j$(nproc)
-          
+
           # 确认二进制文件已生成
+          file build.linux/tvheadend
           ls -l build.linux/tvheadend
 
       - name: Package artifact
