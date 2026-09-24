@@ -26,6 +26,14 @@ on:
         required: false
         type: string
         default: '24.21.0'
+      node_upgrade:
+        description: '安装时是否更新 Node（0=不更新，1=更新）'
+        required: false
+        type: choice
+        options:
+          - '1'
+          - '0'
+        default: '0'
 
 jobs:
   # 第一步：在 Debian 12 容器中安装 Ekko 并压缩 server 目录
@@ -149,8 +157,21 @@ jobs:
         run: |
           APP_DIR="build_workspace/Ekko/app"
           cp node.tar.xz "$APP_DIR/"
-          echo "复制完成，app/node 目录内容："
+          echo "复制完成，app 目录内容："
           ls -la "$APP_DIR"
+
+      - name: 替换 install_callback 中的 node_upgrade 占位符
+        run: |
+          CALLBACK_PATH="build_workspace/Ekko/cmd/install_callback"
+          if [ ! -f "$CALLBACK_PATH" ]; then
+            echo "错误：install_callback 文件不存在于 $CALLBACK_PATH"
+            exit 1
+          fi
+          NODE_UPGRADE="${{ github.event.inputs.node_upgrade }}"
+          echo "node_upgrade = $NODE_UPGRADE"
+          sed -i "s/\${node_upgrade}/$NODE_UPGRADE/g" "$CALLBACK_PATH"
+          echo "install_callback 修改后的内容："
+          cat "$CALLBACK_PATH"
 
       - name: 修改 manifest 文件
         run: |
