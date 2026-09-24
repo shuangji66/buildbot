@@ -12,33 +12,34 @@ jobs:
         include:
           - arch: amd64
             runner: ubuntu-22.04
+            container: debian:bookworm
           - arch: arm64
             runner: ubuntu-22.04-arm
+            container: debian:bookworm
+
+    container:
+      image: ${{ matrix.container }}
+      options: --user root
 
     steps:
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          apt-get update
+          apt-get install -y --no-install-recommends \
             build-essential git cmake pkg-config gettext \
             libssl-dev libdvbcsa-dev libavahi-client-dev libsqlite3-dev \
             libusb-1.0-0-dev zlib1g-dev wget python3 python3-pip \
             libxml2-dev libva-dev libvdpau-dev libdrm-dev libasound2-dev libpulse-dev \
-            autotools-dev
-          sudo ln -sf /usr/bin/python3 /usr/bin/python
+            autotools-dev file
+          ln -sf /usr/bin/python3 /usr/bin/python
 
-      - name: Build Tvheadend
+      - name: Build and install Tvheadend
         run: |
-          # 使用当前工作空间作为工作目录
           WORKDIR="${{ github.workspace }}/tvheadend"
           git clone https://github.com/tvheadend/tvheadend.git "$WORKDIR"
           cd "$WORKDIR"
 
-          # tvheadend 静态 ffmpeg 依赖里的 libtheora-1.2.0alpha1 自带 2003-10-03 的
-          # config.guess，认不出 aarch64（错误里那几行 UNAME_* 就是它打印的），
-          # 于是 configure 报 "cannot guess build type; you must specify one"。
-          # autoconf 在猜测 build/host/target 之前会先加载 $CONFIG_SITE，
-          # 直接在里面给出三元组即可绕开那个过期脚本（本地三元组 = 原生编译）。
+          # 解决 aarch64 上 config.guess 过旧的问题
           if [ -x /usr/share/misc/config.guess ]; then
             TRIPLET="$(/usr/share/misc/config.guess)"
           else
@@ -48,21 +49,45 @@ jobs:
           printf 'build_alias=%s\nhost_alias=%s\ntarget_alias=%s\n' \
             "$TRIPLET" "$TRIPLET" "$TRIPLET" > "$SITE"
           export CONFIG_SITE="$SITE"
-          echo "CONFIG_SITE=$SITE"; cat "$SITE"
 
           ./configure --prefix=/var/apps/Tvheadend/target
           make -j$(nproc)
+          make install
 
-          # 确认二进制文件已生成
-          file build.linux/tvheadend
-          ls -l build.linux/tvheadend
+          echo "=== Installed tree ==="
+          find /var/apps/Tvheadend/target -type f | head -50
+
+      - name: Collect libdvbcsa.so.1
+        run: |
+          # 从系统路径提取真实文件（非软链接），按架构自动定位
+          ARCH_DIR="$(uname -m)-linux-gnu"
+          REAL_LIB="/usr/lib/${ARCH_DIR}/libdvbcsa.so.1.0.1"
+          if [ ! -f "$REAL_LIB" ]; then
+            REAL_LIB="$(find /usr/lib -name 'libdvbcsa.so.1.*' -type f | head -1)"
+          fi
+
+          mkdir -p /tmp/extra-libs
+          if [ -n "$REAL_LIB" ] && [ -f "$REAL_LIB" ]; then
+            cp "$REAL_LIB" /tmp/extra-libs/libdvbcsa.so.1
+            echo "Collected: $REAL_LIB"
+          else
+            echo "::warning::libdvbcsa.so.1 real file not found"
+          fi
 
       - name: Package artifact
         run: |
-          WORKDIR="${{ github.workspace }}/tvheadend"
-          mkdir -p artifact
-          cp "$WORKDIR/build.linux/tvheadend" artifact/
-          tar -czf tvheadend-${{ matrix.arch }}.tar.gz -C artifact tvheadend
+          cd /
+          mkdir -p /tmp/package
+          cp -a /var/apps/Tvheadend/target /tmp/package/target
+
+          # 将 libdvbcsa.so.1 放入 target/lib 或独立目录
+          mkdir -p /tmp/package/target/extra-libs
+          if [ -f /tmp/extra-libs/libdvbcsa.so.1 ]; then
+            cp /tmp/extra-libs/libdvbcsa.so.1 /tmp/package/target/extra-libs/
+          fi
+
+          tar -czf "${GITHUB_WORKSPACE}/tvheadend-${{ matrix.arch }}.tar.gz" \
+            -C /tmp/package target
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
