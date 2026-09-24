@@ -1,0 +1,16 @@
+appname=Tvheadend
+version=${VERSION}
+display_name=Tvheadend
+desc="""<p>📺Tvheadend 是领先的 Linux 电视流媒体服务器和数字录像机，可录制流媒体保存至本地。</p><p>⭐使用说明：初次进入为超级账户登录，创建账户并配置密码后重启应用即可以账户登录。录制输出目录需设置相应目录读写权限。</p>"""
+platform=${PLATFORM}
+source=thirdparty
+maintainer=tvheadend
+maintainer_url=https://github.com/tvheadend/tvheadend
+distributor=shuangji66
+distributor_url=https://github.com/shuangji66/FnDepot
+ctl_stop=true
+desktop_uidir=ui
+desktop_applaunchname=Tvheadend.Application
+checkport=false
+disable_authorization_path=false
+changelog=${CHANGELOG}
