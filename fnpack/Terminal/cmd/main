@@ -3,7 +3,6 @@ export TERMINAL_ADMIN_SOCK="${TRIM_APPDEST}/app.sock"
 export TERMINAL_ADMIN_BASEURL="/app/Terminal"
 export TERMINAL_QUICK_CMDS_FILE="${TRIM_PKGVAR}/quickcmds.json"
 export TERMINAL_SESSION_DIR="${TRIM_PKGVAR}/session"
-export TERMINAL_USER_MODE_FILE="${TRIM_PKGVAR}/user-mode.json"
 LOG_FILE="${TRIM_PKGVAR}/info.log"
 PID_FILE="${TRIM_PKGVAR}/app.pid"
 
