@@ -8,7 +8,7 @@ LOG_FILE="${TRIM_PKGVAR}/info.log"
 PID_FILE="${TRIM_PKGVAR}/app.pid"
 
 # write the command to start your program here 
-CMD="${TRIM_APPDEST}/server/wb2api -config ${TRIM_PKGVAR}/config.json"
+CMD="${TRIM_APPDEST}/bin/wb2api -config ${TRIM_PKGVAR}/config.json"
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
@@ -22,7 +22,7 @@ start_process() {
     log_msg "Starting process ..."
     # run cmd to start process
     cd ${TRIM_APPDEST}/server
-    bash -c "${CMD}" >> ${LOG_FILE} 2>&1 &
+    bash -c "${CMD}" 2>&1 &
     # write pid to pidfile
     printf "%s" "$!" > ${PID_FILE}
     # log_msg "CMD = ${CMD}"
