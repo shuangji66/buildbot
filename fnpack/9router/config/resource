@@ -1,14 +1,1 @@
-{
-  "data-share": {
-    "shares": [
-      {
-        "name": "9router",
-        "permission": {
-          "rw": [
-            "9router"
-          ]
-        }
-      }
-    ]
-  }
-}
+{}
