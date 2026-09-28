@@ -108,7 +108,7 @@ jobs:
         run: |
           cd build_workspace/CloudSaver/app
           npm ci --omit=dev
-          tar -czf node_modules.tar.gz node_modules
+          tar -cJf node_modules.tar.xz node_modules
           rm -rf node_modules
 
       - name: 修改 manifest 文件（替换版本号、更新日志和平台）
