@@ -1,12 +1,11 @@
 #!/bin/bash
-
+export HOME="${TRIM_DATA_SHARE_PATHS%%:*}"
 LOG_FILE="${TRIM_DATA_SHARE_PATHS%%:*}/info.log"
 PID_FILE="${TRIM_PKGVAR}/app.pid"
-RPC_SECRET="$rpc_secret"
-RPC_PORT="$rpc_port"
+
 DOWNLOAD="${TRIM_DATA_SHARE_PATHS%%:*}/Download"
 
-CMD="${TRIM_APPDEST}/server/aria2c --conf-path=${TRIM_DATA_SHARE_PATHS%%:*}/data/aria2.conf --enable-rpc --rpc-listen-all --rpc-secret=$RPC_SECRET --rpc-listen-port=$RPC_PORT --dir=$DOWNLOAD"
+CMD="${TRIM_APPDEST}/bin/aria2-next --conf-path=${TRIM_DATA_SHARE_PATHS%%:*}/data/aria2.conf --enable-rpc --rpc-listen-all --rpc-secret=$rpc_secret --rpc-listen-port=$rpc_port --dir=$DOWNLOAD"
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}

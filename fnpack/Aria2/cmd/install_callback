@@ -6,17 +6,9 @@ TARGET_DIR="${TRIM_DATA_SHARE_PATHS%%:*}/data"
 sed \
   -e "s|\${PRC_SECRET}|$rpc_secret|g" \
   "$CONFIG_TEMPLATE" > "$CONFIG_FILE"
-
-FILES=("aria2.session" "dht.dat" "dht6.dat")
-
-for file in "${FILES[@]}"; do
-  FILE_PATH="$TARGET_DIR/$file"
   
-  if [ ! -f "$FILE_PATH" ]; then
-    echo "File not found: $FILE_PATH. Creating empty file..."
-    # 创建空文件
-    touch "$FILE_PATH"
-  fi
-done
+if [ ! -f "$TARGET_DIR/aria2.session" ]; then
+    touch "$TARGET_DIR/aria2.session"
+fi
 
 exit 0

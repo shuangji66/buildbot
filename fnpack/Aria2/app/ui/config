@@ -2,12 +2,14 @@
   ".url": {
     "Aria2.Application": {
       "noDisplay": false,
-      "allUsers": true,
+      "allUsers": false,
       "fileTypes": [],
       "control": {
-        "accessPerm": "readonly"
+        "accessPerm": "editable"
       },
       "protocol": "http",
+      "gatewayPrefix": "",
+      "gatewaySocket": "",
       "title": "Aria2",
       "icon": "images/icon_{0}.png",
       "type": "iframe",
