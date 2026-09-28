@@ -4,16 +4,16 @@ on:
   workflow_dispatch:
     inputs:
       harness_version:
-        description: 'Harness 二进制版本号（例如 1.3.0，将注入到二进制中）'
+        description: 'Harness 二进制版本号（例如 1.3.1，将注入到二进制中）'
         required: true
         type: string
       dsh_version:
-        description: 'dsh 包版本（例如 0.1.7-rc.2，或 latest）'
+        description: 'dsh 包版本（例如 0.2.0-rc.1，或 latest）'
         required: true
-        default: '0.1.7-rc.2'
+        default: '0.2.0-rc.1'
         type: string
       manifest_version:
-        description: 'manifest 中的版本号（例如 1.0.0）'
+        description: 'manifest 中的版本号（例如 1.0.1）'
         required: true
         type: string
       changelog:
@@ -75,7 +75,7 @@ jobs:
           name: harness-${{ matrix.arch }}
           path: ./dsh-src/backend/harness-${{ matrix.arch }}
 
-  # ========== 第二步：在 Debian 12 容器内构建 dsh 并生成 server.tar.gz ==========
+  # ========== 第二步：在 Debian 12 容器内构建 dsh 并生成 server.tar.xz ==========
   build-in-container:
     strategy:
       matrix:
@@ -301,14 +301,14 @@ jobs:
 
       - name: 压缩 server 目录
         run: |
-          tar czf "$GITHUB_WORKSPACE/server-${{ matrix.platform }}.tar.gz" \
+          tar cJf "$GITHUB_WORKSPACE/server-${{ matrix.platform }}.tar.xz" \
             -C /var/apps/Harness/target server
 
       - name: 上传 server.tar.gz 作为 Artifact
         uses: actions/upload-artifact@v7
         with:
           name: server-${{ matrix.platform }}
-          path: server-${{ matrix.platform }}.tar.gz
+          path: server-${{ matrix.platform }}.tar.xz
           if-no-files-found: error
 
   # ========== 第三步：在宿主机（容器外）使用 fnpack 打包 ==========
@@ -344,7 +344,7 @@ jobs:
             echo "arch=arm64" >> $GITHUB_OUTPUT
           fi
 
-      - name: 下载对应架构的 server.tar.gz
+      - name: 下载对应架构的 server.tar.xz
         uses: actions/download-artifact@v7
         with:
           name: server-${{ matrix.platform }}
@@ -376,8 +376,8 @@ jobs:
       - name: 组装 app 目录
         run: |
           mkdir -p build_workspace/Harness/app/bin
-          # 复制 server.tar.gz
-          cp ./server_artifact/server-${{ matrix.platform }}.tar.gz build_workspace/Harness/app/server.tar.gz
+          # 复制 server.tar.xz
+          cp ./server_artifact/server-${{ matrix.platform }}.tar.gz build_workspace/Harness/app/server.tar.xz
           # 复制并重命名 harness
           cp ./harness_artifact/harness-${{ steps.map_arch.outputs.arch }} build_workspace/Harness/app/bin/harness
           chmod +x build_workspace/Harness/app/bin/harness
