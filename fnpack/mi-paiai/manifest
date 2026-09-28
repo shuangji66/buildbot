@@ -1,7 +1,7 @@
 appname=mi-paiai
 version=${VERSION}
 display_name=小爱音箱控制台
-desc="""让小爱音箱接入你选择的大模型"""
+desc="""🤖让小爱音箱接入你选择的大模型。"""
 platform=${PLATFORM}
 source=thirdparty
 maintainer=clawpai
