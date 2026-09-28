@@ -92,13 +92,13 @@ jobs:
       - name: Create archive
         run: |
           cd /var/apps/mi-paipai/target
-          tar -czf server-${{ matrix.arch }}.tar.gz server
-          ls -lh server-${{ matrix.arch }}.tar.gz
+          tar -czf server.tar.gz server
+          ls -lh server.tar.gz
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
           name: server-${{ matrix.arch }}
-          path: /var/apps/mi-paipai/target/server-${{ matrix.arch }}.tar.gz
+          path: /var/apps/mi-paipai/target/server.tar.gz
           if-no-files-found: error
           retention-days: 30
