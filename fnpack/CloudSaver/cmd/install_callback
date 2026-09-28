@@ -1,21 +1,11 @@
 #!/bin/bash
-#export PATH=/var/apps/nodejs_v24/target/bin:$PATH
-#cd ${TRIM_APPDEST}
-#npm rebuild --ignore-scripts
 cd ${TRIM_APPDEST}
-if [ -f "node_modules.tar.gz" ];then
-    tar -xzf node_modules.tar.gz
-else
-    echo "未找到node_modules.tar.gz" > ${TRIM_TEMP_LOGFILE}
-    exit 1
-fi
+tar -xJf node_modules.tar.xz
 rm -f node_modules.tar.gz
+
 mkdir ${TRIM_PKGVAR}/logs
 mkdir ${TRIM_PKGVAR}/data
 ln -s ${TRIM_PKGVAR}/data ${TRIM_APPDEST}/data
 ln -s ${TRIM_PKGVAR}/logs ${TRIM_APPDEST}/logs
-#touch ${TRIM_PKGVAR}/logs/error.log
-#touch ${TRIM_PKGVAR}/logs/access.log
-#mkdir -p ${TRIM_PKGVAR}/cache/{client_temp,proxy_temp,fastcgi_temp,uwsgi_temp,scgi_temp}
 
 exit 0
