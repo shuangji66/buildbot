@@ -3,7 +3,7 @@
 NODE_UPGRADE=${node_upgrade}
 # 部署server包
 cd ${TRIM_APPDEST}
-tar -xzf server.tar.xz
+tar -xJf server.tar.xz
 rm -rf server.tar.xz
 # 部署node环境
 if [ ! -f "${TRIM_PKGVAR}/node/bin/node" ]; then
