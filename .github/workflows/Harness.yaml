@@ -377,7 +377,7 @@ jobs:
         run: |
           mkdir -p build_workspace/Harness/app/bin
           # 复制 server.tar.xz
-          cp ./server_artifact/server-${{ matrix.platform }}.tar.gz build_workspace/Harness/app/server.tar.xz
+          cp ./server_artifact/server-${{ matrix.platform }}.tar.xz build_workspace/Harness/app/server.tar.xz
           # 复制并重命名 harness
           cp ./harness_artifact/harness-${{ steps.map_arch.outputs.arch }} build_workspace/Harness/app/bin/harness
           chmod +x build_workspace/Harness/app/bin/harness
