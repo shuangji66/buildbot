@@ -1,0 +1,160 @@
+name: Build Agent2API and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_version:
+        description: '上游镜像版本号（例如 2.8.0，不带 latest）'
+        required: true
+        type: string
+      manifest_version:
+        description: 'manifest 中的版本号（留空则与上游镜像版本号一致）'
+        required: false
+        type: string
+        default: ''
+      changelog:
+        description: '更新日志（支持中文）'
+        required: true
+        type: string
+      publish:
+        description: '是否发布到 Fndepot Release'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: x86
+          - os: ubuntu-24.04-arm
+            platform: arm
+    runs-on: ${{ matrix.os }}
+    outputs:
+      app_name: ${{ steps.set_vars.outputs.app_name }}
+      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
+      changelog: ${{ steps.set_vars.outputs.changelog }}
+    steps:
+      - name: 设置项目变量
+        id: set_vars
+        run: |
+          APP_NAME="Agent2API"
+          IMAGE_VERSION="${{ github.event.inputs.image_version }}"
+          MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          # 未填写 manifest_version 时，回退使用上游镜像版本号
+          if [ -z "$MANIFEST_VERSION" ]; then
+            MANIFEST_VERSION="$IMAGE_VERSION"
+          fi
+          CHANGELOG="${{ github.event.inputs.changelog }}"
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "image_version=$IMAGE_VERSION" >> $GITHUB_OUTPUT
+          echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "上游镜像版本: $IMAGE_VERSION"
+          echo "manifest 版本: $MANIFEST_VERSION"
+
+      - name: 拉取镜像并提取文件
+        run: |
+          IMAGE_TAG="${{ steps.set_vars.outputs.image_version }}"
+          IMAGE="aimodcc/agent2api:${IMAGE_TAG}"
+          echo "拉取镜像: $IMAGE"
+          docker pull "$IMAGE"
+          CONTAINER_ID=$(docker create "$IMAGE")
+          mkdir -p dist/bin dist/ui
+          docker cp "$CONTAINER_ID":/usr/local/bin/agent2api-server dist/bin/
+          docker cp "$CONTAINER_ID":/app/ui/. dist/ui/
+          docker rm "$CONTAINER_ID"
+          echo "提取完成："
+          ls -la dist/bin/
+          echo "ui 目录内容："
+          ls -la dist/ui/
+          file dist/bin/agent2api-server
+
+      - name: 检出 buildbot 仓库
+        uses: actions/checkout@v7
+        with:
+          path: buildbot_repo
+
+      - name: 准备 fnpack 工具和模板
+        run: |
+          mkdir -p build_workspace
+          cp -r "buildbot_repo/fnpack/${{ steps.set_vars.outputs.app_name }}" build_workspace/
+          if [ "${{ matrix.platform }}" = "x86" ]; then
+            FNPACK_BIN="fnpack-1.2.3-linux-amd64"
+          else
+            FNPACK_BIN="fnpack-1.2.3-linux-arm64"
+          fi
+          cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
+          chmod +x build_workspace/fnpack
+
+      - name: 复制二进制到 app/bin（重命名为 agent2api）
+        run: |
+          APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app/bin"
+          mkdir -p "$APP_DIR"
+          cp dist/bin/agent2api-server "$APP_DIR/agent2api"
+          chmod +x "$APP_DIR/agent2api"
+          echo "复制完成，app/bin 目录内容："
+          ls -la "$APP_DIR"
+
+      - name: 复制 ui 目录到 app/www
+        run: |
+          APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app/www"
+          mkdir -p "$APP_DIR"
+          cp -a dist/ui/. "$APP_DIR/"
+          echo "复制完成，app/www 目录内容："
+          ls -la "$APP_DIR"
+
+      - name: 修改 manifest 文件
+        run: |
+          MANIFEST_PATH="build_workspace/${{ steps.set_vars.outputs.app_name }}/manifest"
+          if [ ! -f "$MANIFEST_PATH" ]; then
+            echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
+            exit 1
+          fi
+          MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
+          CHANGELOG="${{ steps.set_vars.outputs.changelog }}"
+          sudo apt-get update && sudo apt-get install -y jq
+          ESCAPED_CHANGELOG=$(printf '%s' "$CHANGELOG" | jq -sRr @json)
+          sed -i "s/\${VERSION}/$MANIFEST_VERSION/g" "$MANIFEST_PATH"
+          sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
+          sed -i "s/\${PLATFORM}/${{ matrix.platform }}/g" "$MANIFEST_PATH"
+          echo "manifest 修改后的内容："
+          cat "$MANIFEST_PATH"
+
+      - name: 执行 fnpack 打包
+        run: |
+          cd build_workspace
+          ./fnpack build "${{ steps.set_vars.outputs.app_name }}"
+          FPK_FILE=$(ls *.fpk | head -n 1)
+          if [ -z "$FPK_FILE" ]; then
+            echo "错误：未找到生成的 fpk 文件"
+            exit 1
+          fi
+          FINAL_NAME="${{ steps.set_vars.outputs.app_name }}-${{ steps.set_vars.outputs.manifest_version }}-${{ matrix.platform }}.fpk"
+          mv "$FPK_FILE" "$FINAL_NAME"
+          echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
+          echo "打包完成，生成文件：$FINAL_NAME"
+          ls -la *.fpk
+
+      - name: 上传 fpk 文件作为 Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: fpk-${{ matrix.platform }}
+          path: build_workspace/*.fpk
+          if-no-files-found: error
+
+  # ========== 发布到 Fndepot ==========
+  publish:
+    name: 发布到 Fndepot Release
+    needs: build
+    if: always() && needs.build.result == 'success' && github.event.inputs.publish == 'true'
+    uses: ./.github/workflows/Publish.yaml
+    with:
+      app_name: ${{ needs.build.outputs.app_name }}
+      manifest_version: ${{ needs.build.outputs.manifest_version }}
+      changelog: ${{ needs.build.outputs.changelog }}
+    secrets:
+      BUILDBOT: ${{ secrets.BUILDBOT }}
