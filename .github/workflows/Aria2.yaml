@@ -1,0 +1,184 @@
+name: Build Aria2 and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      aria2_version:
+        description: 'aria2-next 版本号（例如 2.8.3，不带 v）'
+        required: true
+        type: string
+      manifest_version:
+        description: 'manifest 中的版本号（留空则与 aria2-next 版本号一致）'
+        required: false
+        type: string
+        default: ''
+      changelog:
+        description: '更新日志（支持中文）'
+        required: true
+        type: string
+      publish:
+        description: '是否发布到 Fndepot Release'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: x86
+            asset_arch: x86_64
+          - os: ubuntu-24.04-arm
+            platform: arm
+            asset_arch: aarch64
+    runs-on: ${{ matrix.os }}
+    outputs:
+      app_name: ${{ steps.set_vars.outputs.app_name }}
+      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
+      changelog: ${{ steps.set_vars.outputs.changelog }}
+    steps:
+      - name: 设置项目变量
+        id: set_vars
+        run: |
+          APP_NAME="Aria2"
+          ARIA2_VERSION="${{ github.event.inputs.aria2_version }}"
+          MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          if [ -z "$MANIFEST_VERSION" ]; then
+            MANIFEST_VERSION="$ARIA2_VERSION"
+          fi
+          CHANGELOG="${{ github.event.inputs.changelog }}"
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "aria2_version=$ARIA2_VERSION" >> $GITHUB_OUTPUT
+          echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "aria2 版本: $ARIA2_VERSION"
+          echo "manifest 版本: $MANIFEST_VERSION"
+
+      - name: 获取 AriaNg 最新版本号
+        id: ariang_version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=$(gh api repos/mayswind/AriaNg/releases/latest --jq '.tag_name')
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "AriaNg 最新版本: $TAG"
+
+      - name: 下载 aria2-next 二进制（${{ matrix.platform }}）
+        run: |
+          VERSION="${{ steps.set_vars.outputs.aria2_version }}"
+          ASSET_ARCH="${{ matrix.asset_arch }}"
+          DOWNLOAD_URL="https://github.com/AnInsomniacy/aria2-next/releases/download/v${VERSION}/aria2-next-${VERSION}-linux-${ASSET_ARCH}"
+          echo "下载地址: $DOWNLOAD_URL"
+          curl -fL "$DOWNLOAD_URL" -o aria2-next
+          chmod +x aria2-next
+          echo "下载完成："
+          ls -la aria2-next
+          file aria2-next
+
+      - name: 下载并解压 AriaNg UI
+        run: |
+          ARIANG_VER="${{ steps.ariang_version.outputs.tag }}"
+          DOWNLOAD_URL="https://github.com/mayswind/AriaNg/releases/download/${ARIANG_VER}/AriaNg-${ARIANG_VER}-AllInOne.zip"
+          echo "下载地址: $DOWNLOAD_URL"
+          curl -fL "$DOWNLOAD_URL" -o ariang.zip
+          mkdir -p ariang-extract
+          unzip -o ariang.zip -d ariang-extract
+          echo "解压完成，目录结构："
+          find ariang-extract -maxdepth 2 -type f | head -20
+
+          # 定位 index.html
+          INDEX_FILE=$(find ariang-extract -type f -name "index.html" | head -1)
+          if [ -z "$INDEX_FILE" ]; then
+            echo "错误：未在解压目录中找到 index.html"
+            exit 1
+          fi
+          echo "index.html: $INDEX_FILE"
+          echo "INDEX_FILE=$INDEX_FILE" >> $GITHUB_ENV
+
+      - name: 检出 buildbot 仓库
+        uses: actions/checkout@v7
+        with:
+          path: buildbot_repo
+
+      - name: 准备 fnpack 工具和模板
+        run: |
+          mkdir -p build_workspace
+          cp -r "buildbot_repo/fnpack/${{ steps.set_vars.outputs.app_name }}" build_workspace/
+          if [ "${{ matrix.platform }}" = "x86" ]; then
+            FNPACK_BIN="fnpack-1.2.3-linux-amd64"
+          else
+            FNPACK_BIN="fnpack-1.2.3-linux-arm64"
+          fi
+          cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
+          chmod +x build_workspace/fnpack
+
+      - name: 复制 aria2-next 到 app/bin
+        run: |
+          APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app/bin"
+          mkdir -p "$APP_DIR"
+          cp aria2-next "$APP_DIR/"
+          chmod +x "$APP_DIR/aria2-next"
+          echo "复制完成，app/bin 目录内容："
+          ls -la "$APP_DIR"
+
+      - name: 复制 AriaNg index.html 到 app/ui
+        run: |
+          APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app/ui"
+          mkdir -p "$APP_DIR"
+          cp "$INDEX_FILE" "$APP_DIR/"
+          echo "复制完成，app/ui 目录内容："
+          ls -la "$APP_DIR"
+
+      - name: 修改 manifest 文件
+        run: |
+          MANIFEST_PATH="build_workspace/${{ steps.set_vars.outputs.app_name }}/manifest"
+          if [ ! -f "$MANIFEST_PATH" ]; then
+            echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
+            exit 1
+          fi
+          MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
+          CHANGELOG="${{ steps.set_vars.outputs.changelog }}"
+          sudo apt-get update && sudo apt-get install -y jq
+          ESCAPED_CHANGELOG=$(printf '%s' "$CHANGELOG" | jq -sRr @json)
+          sed -i "s/\${VERSION}/$MANIFEST_VERSION/g" "$MANIFEST_PATH"
+          sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
+          sed -i "s/\${PLATFORM}/${{ matrix.platform }}/g" "$MANIFEST_PATH"
+          echo "manifest 修改后的内容："
+          cat "$MANIFEST_PATH"
+
+      - name: 执行 fnpack 打包
+        run: |
+          cd build_workspace
+          ./fnpack build "${{ steps.set_vars.outputs.app_name }}"
+          FPK_FILE=$(ls *.fpk | head -n 1)
+          if [ -z "$FPK_FILE" ]; then
+            echo "错误：未找到生成的 fpk 文件"
+            exit 1
+          fi
+          FINAL_NAME="${{ steps.set_vars.outputs.app_name }}-${{ steps.set_vars.outputs.manifest_version }}-${{ matrix.platform }}.fpk"
+          mv "$FPK_FILE" "$FINAL_NAME"
+          echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
+          echo "打包完成，生成文件：$FINAL_NAME"
+          ls -la *.fpk
+
+      - name: 上传 fpk 文件作为 Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: fpk-${{ matrix.platform }}
+          path: build_workspace/*.fpk
+          if-no-files-found: error
+
+  # ========== 发布到 Fndepot ==========
+  publish:
+    name: 发布到 Fndepot Release
+    needs: build
+    if: always() && needs.build.result == 'success' && github.event.inputs.publish == 'true'
+    uses: ./.github/workflows/Publish.yaml
+    with:
+      app_name: ${{ needs.build.outputs.app_name }}
+      manifest_version: ${{ needs.build.outputs.manifest_version }}
+      changelog: ${{ needs.build.outputs.changelog }}
+    secrets:
+      BUILDBOT: ${{ secrets.BUILDBOT }}
