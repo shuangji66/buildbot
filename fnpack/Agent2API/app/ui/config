@@ -1,0 +1,20 @@
+{
+  ".url": {
+    "Agent2API.Application": {
+      "noDisplay": false,
+      "allUsers": false,
+      "fileTypes": [],
+      "control": {
+        "accessPerm": "editable"
+      },
+      "protocol": "",
+      "gatewayPrefix": "",
+      "gatewaySocket": "",
+      "title": "Agent2API",
+      "icon": "images/icon_{0}.png",
+      "type": "iframe",
+      "port": "${port}",
+      "url": ""
+    }
+  }
+}

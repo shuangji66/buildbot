@@ -1,0 +1,16 @@
+appname=Agent2API
+version=${VERSION}
+display_name=Agent2API
+desc="""<p>🤖把多家 AI 桌面客户端的登录态包装成本地 OpenAI 兼容 API 网关。</p>"""
+platform=${PLATFORM}
+source=thirdparty
+maintainer=aimod-cc
+maintainer_url=https://github.com/aimod-cc/agent2api
+distributor=shuangji66
+distributor_url=https://github.com/shuangji66/FnDepot
+ctl_stop=true
+desktop_uidir=ui
+desktop_applaunchname=Agent2API.Application
+checkport=false
+disable_authorization_path=true
+changelog=${CHANGELOG}
