@@ -1,10 +1,12 @@
 #!/bin/bash
 export PATH=/var/apps/nodejs_v24/target/bin:$PATH
 cd ${TRIM_APPDEST}
-tar -xzf server.tar.gz
-rm -f server.tar.gz
+tar -xJf server.tar.xz
+rm -f server.tar.xz
 mkdir -p ${TRIM_PKGVAR}/pnpm
 mkdir -p ${TRIM_PKGVAR}/backup
-corepack enable pnpm --install-directory ${TRIM_PKGVAR}/pnpm
+if [ ! -f "${TRIM_PKGVAR}/pnpm/pnpm" ]; then
+    corepack enable pnpm --install-directory ${TRIM_PKGVAR}/pnpm
+fi
 
 exit 0
