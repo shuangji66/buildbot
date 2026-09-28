@@ -1,0 +1,71 @@
+[
+  {
+    "stepTitle": "欢迎使用",
+    "items": [
+      {
+        "type": "text",
+        "field": "port",
+        "label": "端口",
+        "rules": [],
+        "options": [],
+        "initValue": "36528"
+      },
+      {
+        "type": "text",
+        "field": "admin",
+        "label": "管理用户",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          },
+          {
+            "min": 3,
+            "max": 10,
+            "message": ""
+          }
+        ],
+        "options": [],
+        "initValue": "admin"
+      },
+      {
+        "type": "text",
+        "field": "password",
+        "label": "管理密码",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          },
+          {
+            "min": 12,
+            "max": 32,
+            "message": "12-32位"
+          }
+        ],
+        "options": [],
+        "helpText": "",
+        "initValue": ""
+      },
+      {
+        "type": "text",
+        "field": "secret",
+        "label": "密钥",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          },
+          {
+            "min": 32,
+            "max": 128,
+            "message": "32-128位"
+          }
+        ],
+        "options": [],
+        "helpText": "",
+        "initValue": ""
+      }
+    ]
+  }
+]
