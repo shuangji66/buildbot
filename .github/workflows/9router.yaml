@@ -56,16 +56,16 @@ jobs:
           mkdir -p /var/apps/9router/target/server
           npm install -g 9router@latest --prefix /var/apps/9router/target/server
 
-      - name: 压缩 server 目录为 server.tar.gz
+      - name: 压缩 server 目录为 server.tar.xz
         run: |
           cd /var/apps/9router/target
-          tar -czf server.tar.gz server
+          tar -cJf server.tar.xz server
 
-      - name: 上传 server.tar.gz 作为 Artifact
+      - name: 上传 server.tar.xz 作为 Artifact
         uses: actions/upload-artifact@v7
         with:
           name: server-${{ matrix.platform }}
-          path: /var/apps/9router/target/server.tar.gz
+          path: /var/apps/9router/target/server.tar.xz
           if-no-files-found: error
 
   # 第二步：在宿主机（容器外）进行 fnpack 打包，使用对应架构的 runner
@@ -92,7 +92,7 @@ jobs:
           echo "manifest_version=${{ needs.build-in-container.outputs.manifest_version }}" >> $GITHUB_OUTPUT
           echo "changelog=${{ needs.build-in-container.outputs.changelog }}" >> $GITHUB_OUTPUT
 
-      - name: 下载对应架构的 server.tar.gz
+      - name: 下载对应架构的 server.tar.xz
         uses: actions/download-artifact@v7
         with:
           name: server-${{ matrix.platform }}
@@ -115,10 +115,10 @@ jobs:
           cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
           chmod +x build_workspace/fnpack
 
-      - name: 复制 server.tar.gz 到 app 目录
+      - name: 复制 server.tar.xz 到 app 目录
         run: |
           mkdir -p build_workspace/9router/app
-          cp ./server_artifact/server.tar.gz build_workspace/9router/app/
+          cp ./server_artifact/server.tar.xz build_workspace/9router/app/
 
       - name: 修改 manifest 文件
         run: |
