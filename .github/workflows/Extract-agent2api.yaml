@@ -1,0 +1,36 @@
+name: Extract agent2api Artifacts
+
+on:
+  workflow_dispatch:
+
+jobs:
+  extract:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+      fail-fast: false
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Pull image and extract files
+        run: |
+          docker pull aimodcc/agent2api:latest
+          docker create --name tmp aimodcc/agent2api:latest
+          mkdir -p dist/bin dist/ui
+          docker cp tmp:/usr/local/bin/agent2api-server dist/bin/
+          docker cp tmp:/app/ui/. dist/ui/
+          docker rm tmp
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: agent2api-${{ matrix.arch }}
+          path: |
+            dist/bin/agent2api-server
+            dist/ui/
+          if-no-files-found: error
