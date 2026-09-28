@@ -66,7 +66,7 @@ jobs:
 
       - name: Prepare target directory (复刻 Dockerfile runtime 阶段)
         run: |
-          TARGET=/var/apps/mi-paipai/target/server
+          TARGET=/var/apps/mi-paiai/target/server
           mkdir -p "$TARGET"
           mkdir -p "$TARGET/apps/web"
 
@@ -91,7 +91,7 @@ jobs:
 
       - name: Create archive
         run: |
-          cd /var/apps/mi-paipai/target
+          cd /var/apps/mi-paiai/target
           tar -czf server.tar.gz server
           ls -lh server.tar.gz
 
@@ -99,6 +99,6 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: server-${{ matrix.arch }}
-          path: /var/apps/mi-paipai/target/server.tar.gz
+          path: /var/apps/mi-paiai/target/server.tar.gz
           if-no-files-found: error
           retention-days: 30
