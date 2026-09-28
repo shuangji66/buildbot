@@ -29,7 +29,7 @@
         "initValue": "admin"
       },
       {
-        "type": "text",
+        "type": "password",
         "field": "password",
         "label": "管理密码",
         "rules": [
