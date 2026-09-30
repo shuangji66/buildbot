@@ -1,1 +1,10 @@
-{}
+{
+  "usr-local-linker": {
+    "bin": [
+      "utils/7z",
+      "utils/rg",
+      "utils/poppler-utils",
+      "utils/pdftotext"
+    ]
+  }
+}
