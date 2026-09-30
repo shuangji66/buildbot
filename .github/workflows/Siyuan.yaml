@@ -1,10 +1,23 @@
-name: Extract Siyuan Server Files
+name: Build Siyuan Server (Debian 12 / glibc)
+
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "siyuan-note/siyuan 的 tag 或分支（想和线上镜像对齐就填 v3.8.6 这类 tag）"
+        required: false
+        default: master
+      npm_registry:
+        description: "npm registry，留空用官方源；国内建议 https://registry.npmmirror.com"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
 
 jobs:
-  extract:
+  build:
     strategy:
       matrix:
         include:
@@ -16,23 +29,117 @@ jobs:
     runs-on: ${{ matrix.runner }}
 
     steps:
-      - name: Pull Siyuan image
-        run: docker pull b3log/siyuan:latest
+      - name: Checkout siyuan source
+        uses: actions/checkout@v7
+        with:
+          repository: siyuan-note/siyuan
+          ref: ${{ inputs.ref }}
+          path: src
 
-      - name: Create container (not start)
+      # 必须先建好 server/：否则 docker 会以 root 身份创建这个挂载点，
+      # 后面 runner 用户就没法往里写东西了。
+      - name: Prepare server dir
+        run: mkdir -p server
+
+      - name: Build frontend assets (node:22-bookworm)
+        env:
+          NPM_REGISTRY: ${{ inputs.npm_registry }}
         run: |
-          docker create --name siyuan-extract b3log/siyuan:latest
+          cat > build-app.sh <<'SH'
+          set -euo pipefail
+          corepack enable
+          corepack install --global "$(node -e 'console.log(require("./package.json").packageManager)')"
+          if [ -n "${NPM_REGISTRY:-}" ]; then
+            npm config set registry "${NPM_REGISTRY}"
+          fi
+          pnpm install --silent
+          pnpm run build
+          node scripts/trimChangelogs.js
+          mkdir -p /out
+          cp -r appearance stage guide /out/
+          if [ -d changelogs ]; then cp -r changelogs /out/; fi
+          SH
+          docker run --rm \
+            -v "$PWD/src:/src" \
+            -v "$PWD/server:/out" \
+            -v "$PWD/build-app.sh:/build-app.sh:ro" \
+            -w /src/app \
+            -e NPM_REGISTRY \
+            node:22-bookworm \
+            bash /build-app.sh
+          ls -l server
 
-      - name: Copy /opt/siyuan to server
+      # 编译阶段必须是 bookworm（glibc 2.36），换成 trixie 会产出要求 glibc 2.41 的二进制，
+      # 在 Debian 12 上反而跑不起来。golang:*-bookworm 自带 gcc/libc6-dev，不需要再装。
+      # 该镜像设了 GOTOOLCHAIN=local：若哪天 go.mod 要求比镜像里的 Go 更新，会直接报错退出，
+      # 那时把镜像 tag 往上提即可。
+      - name: Build kernel (golang:1.26-bookworm)
         run: |
-          docker cp siyuan-extract:/opt/siyuan ./server
+          docker run --rm \
+            -v "$PWD/src:/src" \
+            -v "$PWD/server:/out" \
+            -w /src/kernel \
+            golang:1.26-bookworm \
+            bash -euc 'go version && CGO_ENABLED=1 go build -tags "fts5 sqlcipher" -ldflags "-s -w" -o /out/kernel .'
+          ls -l server/kernel
 
-      - name: Remove container
-        run: docker rm siyuan-extract
+      - name: Verify kernel is glibc-linked (runs on Debian 12)
+        run: |
+          set -euo pipefail
+          BIN=server/kernel
+          file "$BIN"
+
+          INTERP=$(readelf -l "$BIN" | sed -n 's/.*program interpreter: \(.*\)\]/\1/p' | tr -d ' ')
+          echo "ELF interpreter: $INTERP"
+          case "$INTERP" in
+            /lib64/ld-linux-*.so.*|/lib/ld-linux-*.so.*) ;;
+            *) echo "::error::内核仍链接到非 glibc 解释器（$INTERP），在 Debian 12 上无法直接运行"; exit 1 ;;
+          esac
+
+          MAX=$(objdump -T "$BIN" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1)
+          echo "最高 GLIBC 符号版本: $MAX"
+          if [ "$(printf '%s\nGLIBC_2.36\n' "$MAX" | sort -V | tail -1)" != "GLIBC_2.36" ]; then
+            echo "::error::需要 glibc > 2.36（$MAX），Debian 12 跑不了；确认编译用的是 bookworm 而不是 trixie"
+            exit 1
+          fi
+
+      - name: Smoke test - boot kernel and probe HTTP
+        run: |
+          set -euo pipefail
+          WS="$RUNNER_TEMP/siyuan-ws"
+          mkdir -p "$WS"
+          # 必须在 server/ 目录下启动，等价于官方镜像里的 WORKDIR /opt/siyuan：
+          # 内核工作目录默认取 CWD（util/working.go:251），静态资源是
+          # siyuan.Static("/stage", filepath.Join(util.WorkingDir, "stage"))（server/serve.go:866），
+          # 语言包也从 WorkingDir/appearance/langs 读（util/i18n.go:27）。
+          # 实测从别的目录启动，内核会在 model.initLang() 阶段报错退出，端口根本不监听。
+          # 不想改 CWD 就传 --wd="$PWD/server"。
+          cd "$PWD/server"
+          ./kernel serve --workspace="$WS" --port=16806 > "$RUNNER_TEMP/kernel.log" 2>&1 &
+          PID=$!
+          ok=0
+          for _ in $(seq 1 60); do
+            if curl -sfL -o /dev/null -m 2 http://127.0.0.1:16806/ \
+            && curl -sfL -o /dev/null -m 2 http://127.0.0.1:16806/stage/build/app/index.html; then
+              ok=1; break
+            fi
+            kill -0 "$PID" 2>/dev/null || break
+            sleep 1
+          done
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+          tail -5 "$RUNNER_TEMP/kernel.log"
+          if [ "$ok" != "1" ]; then
+            echo "::error::内核未能在 60s 内提供 HTTP 服务，产物不可用"
+            tail -50 "$RUNNER_TEMP/kernel.log"
+            exit 1
+          fi
+          echo "内核启动成功，HTTP 可访问"
 
       - name: Compress server to server.tar.xz
         run: |
           tar -cJf server.tar.xz server
+          ls -lh server.tar.xz
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
