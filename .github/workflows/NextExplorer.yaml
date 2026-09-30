@@ -62,21 +62,42 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # 7-Zip 最新版本
-          SEVEN_ZIP_TAG=$(gh api repos/ip7z/7zip/releases/latest --jq '.tag_name')
+          SEVEN_ZIP_TAG=$(curl -fsSL \
+            -H "Authorization: token $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/ip7z/7zip/releases/latest | jq -r '.tag_name')
           echo "7-Zip 最新版本: $SEVEN_ZIP_TAG"
+          if [ -z "$SEVEN_ZIP_TAG" ] || [ "$SEVEN_ZIP_TAG" = "null" ]; then
+            echo "错误：无法获取 7-Zip 最新版本"
+            exit 1
+          fi
           # 从 "26.03" 生成文件名版本 "2603"（去掉点）
           SEVEN_ZIP_FILE_VER=$(echo "$SEVEN_ZIP_TAG" | sed 's/\.//g')
           echo "seven_zip_tag=$SEVEN_ZIP_TAG" >> $GITHUB_OUTPUT
           echo "seven_zip_file_ver=$SEVEN_ZIP_FILE_VER" >> $GITHUB_OUTPUT
 
           # ripgrep 最新版本
-          RG_TAG=$(gh api repos/BurntSushi/ripgrep/releases/latest --jq '.tag_name')
+          RG_TAG=$(curl -fsSL \
+            -H "Authorization: token $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/BurntSushi/ripgrep/releases/latest | jq -r '.tag_name')
           echo "ripgrep 最新版本: $RG_TAG"
+          if [ -z "$RG_TAG" ] || [ "$RG_TAG" = "null" ]; then
+            echo "错误：无法获取 ripgrep 最新版本"
+            exit 1
+          fi
           echo "rg_tag=$RG_TAG" >> $GITHUB_OUTPUT
 
           # poppler-utils 最新版本
-          POPPLER_TAG=$(gh api repos/unpins/poppler-utils/releases/latest --jq '.tag_name')
+          POPPLER_TAG=$(curl -fsSL \
+            -H "Authorization: token $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/unpins/poppler-utils/releases/latest | jq -r '.tag_name')
           echo "poppler-utils 最新版本: $POPPLER_TAG"
+          if [ -z "$POPPLER_TAG" ] || [ "$POPPLER_TAG" = "null" ]; then
+            echo "错误：无法获取 poppler-utils 最新版本"
+            exit 1
+          fi
           # 从 "v26.06.0-1" 生成 "26.06.0-1"
           POPPLER_FILE_VER=$(echo "$POPPLER_TAG" | sed 's/^v//')
           echo "poppler_tag=$POPPLER_TAG" >> $GITHUB_OUTPUT
