@@ -1,0 +1,41 @@
+name: Extract Siyuan Server Files
+
+on:
+  workflow_dispatch:
+
+jobs:
+  extract:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+      fail-fast: false
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Pull Siyuan image
+        run: docker pull b3log/siyuan:latest
+
+      - name: Create container (not start)
+        run: |
+          docker create --name siyuan-extract b3log/siyuan:latest
+
+      - name: Copy /opt/siyuan to server
+        run: |
+          docker cp siyuan-extract:/opt/siyuan ./server
+
+      - name: Remove container
+        run: docker rm siyuan-extract
+
+      - name: Compress server to server.tar.xz
+        run: |
+          tar -cJf server.tar.xz server
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: siyuan-server-${{ matrix.arch }}
+          path: server.tar.xz
