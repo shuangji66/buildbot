@@ -6,4 +6,6 @@ rm -f node_modules.tar.xz
 
 mkdir -p ${TRIM_PKGVAR}/config ${TRIM_PKGVAR}/cache
 
+ln -sfn ${TRIM_APPDEST}/utils/poppler-utils ${TRIM_APPDEST}/utils/pdftotext
+
 exit 0
