@@ -1,4 +1,4 @@
-name: Build Siyuan Server (Debian 12 / glibc)
+name: Build Siyuan Server
 
 on:
   workflow_dispatch:
@@ -23,15 +23,12 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: siyuan-note/siyuan
-          ref: ${{ inputs.ref }}
           path: src
 
       - name: Prepare server dir
         run: mkdir -p server
 
       - name: Build frontend assets (node:22-bookworm)
-        env:
-          NPM_REGISTRY: ${{ inputs.npm_registry }}
         run: |
           cat > build-app.sh <<'SH'
           set -euo pipefail
@@ -56,6 +53,36 @@ jobs:
             node:22-bookworm \
             bash /build-app.sh
           ls -l server
+
+      - name: Patch kernel to honor HOME
+        run: |
+          cat > src/kernel/util/home_override.go <<'GO'
+          package util
+
+          import (
+              "os"
+
+              "github.com/88250/gulu"
+          )
+
+          func homeDirFromEnv() string {
+              if home := os.Getenv("HOME"); "" != home {
+                  return home
+              }
+              if home, err := gulu.OS.Home(); nil == err {
+                  return home
+              }
+              return ""
+          }
+          GO
+          python3 - <<'PY'
+          import pathlib, re
+          p = pathlib.Path("src/kernel/util/working.go")
+          s = p.read_text()
+          s, n = re.subn(r"HomeDir,\s*_\s*=\s*gulu\.OS\.Home\(\)", "HomeDir = homeDirFromEnv()", s)
+          assert n == 1, n
+          p.write_text(s)
+          PY
 
       - name: Build kernel (golang:1.26-bookworm)
         run: |
