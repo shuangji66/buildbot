@@ -64,7 +64,7 @@ jobs:
             -v "$PWD/server:/out" \
             -w /src/kernel \
             golang:1.26-bookworm \
-            bash -euc 'go version && CGO_ENABLED=1 go build -tags "fts5 sqlcipher" -ldflags "-s -w" -o /out/kernel .'
+            bash -euc 'go version && CGO_ENABLED=1 go build -buildvcs=false -tags "fts5 sqlcipher" -ldflags "-s -w" -o /out/kernel .'
           ls -l server/kernel
 
       - name: Compress server to server.tar.xz
