@@ -1,5 +1,7 @@
 #!/bin/bash
 
-### This script is called after the user installs the application.
+cd ${TRIM_APPDEST}
+tar -xJf app.tar.xz
+rm -rf app.tar.xz
 
 exit 0
