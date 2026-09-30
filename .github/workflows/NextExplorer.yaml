@@ -24,8 +24,14 @@ jobs:
         include:
           - os: ubuntu-24.04
             platform: x86
+            seven_zip_arch: linux-x64
+            rg_arch: x86_64
+            poppler_arch: x86_64
           - os: ubuntu-24.04-arm
             platform: arm
+            seven_zip_arch: linux-arm64
+            rg_arch: aarch64
+            poppler_arch: aarch64
     runs-on: ${{ matrix.os }}
     container: debian:bookworm
     outputs:
@@ -46,9 +52,35 @@ jobs:
       - name: 安装依赖（Node.js、jq、git等）
         run: |
           apt-get update
-          apt-get install -y curl wget git jq xz-utils
+          apt-get install -y curl wget git jq xz-utils zstd
           curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
           apt-get install -y nodejs
+
+      - name: 获取工具最新版本号
+        id: tool_versions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 7-Zip 最新版本
+          SEVEN_ZIP_TAG=$(gh api repos/ip7z/7zip/releases/latest --jq '.tag_name')
+          echo "7-Zip 最新版本: $SEVEN_ZIP_TAG"
+          # 从 "26.03" 生成文件名版本 "2603"（去掉点）
+          SEVEN_ZIP_FILE_VER=$(echo "$SEVEN_ZIP_TAG" | sed 's/\.//g')
+          echo "seven_zip_tag=$SEVEN_ZIP_TAG" >> $GITHUB_OUTPUT
+          echo "seven_zip_file_ver=$SEVEN_ZIP_FILE_VER" >> $GITHUB_OUTPUT
+
+          # ripgrep 最新版本
+          RG_TAG=$(gh api repos/BurntSushi/ripgrep/releases/latest --jq '.tag_name')
+          echo "ripgrep 最新版本: $RG_TAG"
+          echo "rg_tag=$RG_TAG" >> $GITHUB_OUTPUT
+
+          # poppler-utils 最新版本
+          POPPLER_TAG=$(gh api repos/unpins/poppler-utils/releases/latest --jq '.tag_name')
+          echo "poppler-utils 最新版本: $POPPLER_TAG"
+          # 从 "v26.06.0-1" 生成 "26.06.0-1"
+          POPPLER_FILE_VER=$(echo "$POPPLER_TAG" | sed 's/^v//')
+          echo "poppler_tag=$POPPLER_TAG" >> $GITHUB_OUTPUT
+          echo "poppler_file_ver=$POPPLER_FILE_VER" >> $GITHUB_OUTPUT
 
       - name: 检出 buildbot 仓库（包含 NextExplorer 模板）
         uses: actions/checkout@v6
@@ -104,7 +136,7 @@ jobs:
         run: |
           cd app
           tar -cJf node_modules.tar.xz node_modules
-        
+
       - name: 组装 NextExplorer
         run: |
           mkdir -p build_workspace/NextExplorer/app/server
@@ -112,6 +144,60 @@ jobs:
           mv app/package.json build_workspace/NextExplorer/app/server/
           mv nextexplorer-src/backend/src build_workspace/NextExplorer/app/server/src
           mv temp/frontend/dist build_workspace/NextExplorer/app/server/src/public
+
+      # ========== 下载并集成 7-Zip、ripgrep、poppler-utils 到 app/utils/ ==========
+      - name: 下载并提取 7-Zip
+        run: |
+          UTILS_DIR="build_workspace/NextExplorer/app/utils"
+          mkdir -p "$UTILS_DIR"
+          SEVEN_ZIP_FILE_VER="${{ steps.tool_versions.outputs.seven_zip_file_ver }}"
+          SEVEN_ZIP_URL="https://github.com/ip7z/7zip/releases/download/${{ steps.tool_versions.outputs.seven_zip_tag }}/7z${SEVEN_ZIP_FILE_VER}-${{ matrix.seven_zip_arch }}.tar.xz"
+          echo "下载 7-Zip: $SEVEN_ZIP_URL"
+          curl -fL "$SEVEN_ZIP_URL" -o 7z.tar.xz
+          mkdir -p 7z-extract
+          tar -xJf 7z.tar.xz -C 7z-extract
+          SEVEN_ZIP_BIN=$(find 7z-extract -type f -name "7zzs" | head -1)
+          if [ -z "$SEVEN_ZIP_BIN" ]; then
+            echo "错误：未找到 7zzs"
+            exit 1
+          fi
+          cp "$SEVEN_ZIP_BIN" "$UTILS_DIR/7z"
+          chmod +x "$UTILS_DIR/7z"
+          echo "7z 已提取到 $UTILS_DIR/7z"
+          file "$UTILS_DIR/7z"
+
+      - name: 下载并提取 ripgrep
+        run: |
+          UTILS_DIR="build_workspace/NextExplorer/app/utils"
+          RG_TAG="${{ steps.tool_versions.outputs.rg_tag }}"
+          RG_URL="https://github.com/BurntSushi/ripgrep/releases/download/${RG_TAG}/ripgrep-${RG_TAG}-${{ matrix.rg_arch }}-unknown-linux-musl.tar.gz"
+          echo "下载 ripgrep: $RG_URL"
+          curl -fL "$RG_URL" -o rg.tar.gz
+          mkdir -p rg-extract
+          tar -xzf rg.tar.gz -C rg-extract
+          RG_BIN=$(find rg-extract -type f -name "rg" | head -1)
+          if [ -z "$RG_BIN" ]; then
+            echo "错误：未找到 rg"
+            exit 1
+          fi
+          cp "$RG_BIN" "$UTILS_DIR/rg"
+          chmod +x "$UTILS_DIR/rg"
+          echo "rg 已提取到 $UTILS_DIR/rg"
+          file "$UTILS_DIR/rg"
+
+      - name: 下载并提取 poppler-utils
+        run: |
+          UTILS_DIR="build_workspace/NextExplorer/app/utils"
+          POPPLER_FILE_VER="${{ steps.tool_versions.outputs.poppler_file_ver }}"
+          POPPLER_URL="https://github.com/unpins/poppler-utils/releases/download/${{ steps.tool_versions.outputs.poppler_tag }}/poppler-utils-${POPPLER_FILE_VER}-${{ matrix.poppler_arch }}-linux.zst"
+          echo "下载 poppler-utils: $POPPLER_URL"
+          curl -fL "$POPPLER_URL" -o poppler-utils.zst
+          zstd -d poppler-utils.zst -o poppler-utils
+          chmod +x poppler-utils
+          cp poppler-utils "$UTILS_DIR/poppler-utils"
+          echo "poppler-utils 已提取到 $UTILS_DIR/poppler-utils"
+          file "$UTILS_DIR/poppler-utils"
+      # =============================================================================
 
       - name: 修改 manifest 文件
         run: |
