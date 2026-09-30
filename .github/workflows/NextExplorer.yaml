@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       manifest_version:
-        description: 'manifest 中的版本号（例如 2.2.7）'
+        description: 'manifest 中的版本号（例如 3.1.0）'
         required: true
         type: string
       changelog:
@@ -22,9 +22,9 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-22.04
+          - os: ubuntu-24.04
             platform: x86
-          - os: ubuntu-22.04-arm
+          - os: ubuntu-24.04-arm
             platform: arm
     runs-on: ${{ matrix.os }}
     container: debian:bookworm
@@ -100,16 +100,18 @@ jobs:
           cd temp
           npm run -w frontend build -- --sourcemap false
 
+      - name: 压缩node_modules
+        run: |
+          cd app
+          tar -cJf node_modules.tar.xz node_modules
+        
       - name: 组装 NextExplorer
         run: |
           mkdir -p build_workspace/NextExplorer/app/server
-          mv app/node_modules build_workspace/NextExplorer/app/server/node_modules
+          mv app/node_modules.tar.xz build_workspace/NextExplorer/app/server/
           mv app/package.json build_workspace/NextExplorer/app/server/
           mv nextexplorer-src/backend/src build_workspace/NextExplorer/app/server/src
           mv temp/frontend/dist build_workspace/NextExplorer/app/server/src/public
-          cd build_workspace/NextExplorer/app/server
-          tar -czf node_modules.tar.gz node_modules
-          rm -rf node_modules
 
       - name: 修改 manifest 文件
         run: |
