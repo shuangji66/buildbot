@@ -13,9 +13,10 @@ on:
         type: string
         default: '3.8.0'
       manifest_version:
-        description: 'manifest 中的版本号'
-        required: true
+        description: 'manifest 中的版本号（留空则与 Git 上游版本号一致）'
+        required: false
         type: string
+        default: ''
       changelog:
         description: '更新日志（支持中文）'
         required: true
@@ -45,11 +46,17 @@ jobs:
           APP_NAME="Git"
           VERSION="${{ github.event.inputs.version }}"
           MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          # 未填写 manifest_version 时，回退使用 Git 上游版本号
+          if [ -z "$MANIFEST_VERSION" ]; then
+            MANIFEST_VERSION="$VERSION"
+          fi
           CHANGELOG="${{ github.event.inputs.changelog }}"
           echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
           echo "upstream_version=$VERSION" >> $GITHUB_OUTPUT
           echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
           echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "Git 上游版本: $VERSION"
+          echo "manifest 版本: $MANIFEST_VERSION"
 
       - name: 确定架构和平台标识（用于 fnpack）
         id: arch
@@ -171,7 +178,7 @@ jobs:
           echo "打包完成，生成文件：$FINAL_NAME"
           ls -la *.fpk
 
-      - name: 上传 fpk 文件作为 Artifact（供发布任务使用）
+      - name: 上传 fpk 文件作为 Artifact
         uses: actions/upload-artifact@v7
         with:
           name: fpk-${{ steps.arch.outputs.platform }}
