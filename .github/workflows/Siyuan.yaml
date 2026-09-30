@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '版本号（例如 3.5.0）'
+        description: '版本号（例如 3.8.6）'
         required: true
         type: string
       changelog:
