@@ -4,9 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Git 上游版本号（例如 2.55.0）'
+        description: 'Git 上游版本号（例如 2.56.0）'
         required: true
         type: string
+      lfs_version:
+        description: 'git-lfs 版本号（不带 v）'
+        required: false
+        type: string
+        default: '3.8.0'
       manifest_version:
         description: 'manifest 中的版本号'
         required: true
@@ -88,9 +93,10 @@ jobs:
       # ========== 下载并集成 git-lfs ==========
       - name: 下载并安装 git-lfs
         run: |
-          LFS_VERSION="3.8.0"
+          LFS_VERSION="${{ github.event.inputs.lfs_version }}"
           LFS_ARCH="${{ steps.arch.outputs.lfs_arch }}"
           LFS_URL="https://github.com/git-lfs/git-lfs/releases/download/v${LFS_VERSION}/git-lfs-linux-${LFS_ARCH}-v${LFS_VERSION}.tar.gz"
+          echo "下载地址: $LFS_URL"
           wget "$LFS_URL" -O git-lfs.tar.gz
           tar -xzf git-lfs.tar.gz
           find . -name "git-lfs" -type f -executable | head -1 | xargs -I {} cp {} /var/apps/Git/target/bin/
@@ -120,16 +126,18 @@ jobs:
           cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
           chmod +x build_workspace/fnpack
 
-      # ========== 复制编译产物（包含 git-lfs）到 app 目录 ==========
-      - name: 将编译好的 Git 及 git-lfs 复制到 app 目录
+      # ========== 将编译产物压缩为 app.tar.xz 并复制到 app 目录 ==========
+      - name: 将编译好的 Git 及 git-lfs 压缩为 app.tar.xz
         run: |
           APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app"
           mkdir -p "$APP_DIR"
-          cp -r /var/apps/Git/target/* "$APP_DIR/"
-          echo "复制完成，app 目录内容："
+          # 进入 target 目录，归档当前目录的全部内容（含子目录与文件），避免顶层多出 target/ 或 app/ 目录
+          tar -cJf "$APP_DIR/app.tar.xz" -C /var/apps/Git/target .
+          echo "压缩完成，app 目录内容："
           ls -la "$APP_DIR"
-          ls -la "$APP_DIR/bin" || true
-      # =========================================================
+          echo "app.tar.xz 内容预览（前 20 项）："
+          tar -tJf "$APP_DIR/app.tar.xz" | head -20
+      # ====================================================================
 
       - name: 修改 manifest 文件
         run: |
