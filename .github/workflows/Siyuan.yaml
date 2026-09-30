@@ -1,34 +1,57 @@
-name: Build Siyuan Server
+name: Build Siyuan and Release
 
 on:
   workflow_dispatch:
-
-permissions:
-  contents: read
+    inputs:
+      version:
+        description: '版本号（例如 3.5.0）'
+        required: true
+        type: string
+      changelog:
+        description: '更新日志（支持中文）'
+        required: true
+        type: string
+      publish:
+        description: '是否发布到 Fndepot Release'
+        required: false
+        type: boolean
+        default: true
 
 jobs:
-  build:
+  # ========== 第一步：构建 server.tar.xz ==========
+  build-server:
+    name: 构建 server.tar.xz
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - runner: ubuntu-24.04
-            arch: amd64
-          - runner: ubuntu-24.04-arm
-            arch: arm64
-      fail-fast: false
-    runs-on: ${{ matrix.runner }}
-
+          - os: ubuntu-24.04
+            platform: x86
+          - os: ubuntu-24.04-arm
+            platform: arm
+    runs-on: ${{ matrix.os }}
+    outputs:
+      app_name: ${{ steps.set_vars.outputs.app_name }}
+      version: ${{ steps.set_vars.outputs.version }}
+      changelog: ${{ steps.set_vars.outputs.changelog }}
     steps:
-      - name: Checkout siyuan source
+      - name: 设置项目变量
+        id: set_vars
+        run: |
+          echo "app_name=Siyuan" >> $GITHUB_OUTPUT
+          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          echo "changelog=${{ github.event.inputs.changelog }}" >> $GITHUB_OUTPUT
+
+      - name: 检出 siyuan 源码
         uses: actions/checkout@v7
         with:
           repository: siyuan-note/siyuan
           path: src
 
-      - name: Prepare server dir
+      - name: 准备 server 目录
         run: mkdir -p server
 
-      - name: Build frontend assets (node:22-bookworm)
+      - name: 构建前端资源（node:22-bookworm）
         run: |
           cat > build-app.sh <<'SH'
           set -euo pipefail
@@ -54,7 +77,7 @@ jobs:
             bash /build-app.sh
           ls -l server
 
-      - name: Patch kernel to honor HOME
+      - name: 修补 kernel 以支持 HOME 环境变量
         run: |
           cat > src/kernel/util/home_override.go <<'GO'
           package util
@@ -84,7 +107,7 @@ jobs:
           p.write_text(s)
           PY
 
-      - name: Build kernel (golang:1.26-bookworm)
+      - name: 构建 kernel（golang:1.26-bookworm）
         run: |
           docker run --rm \
             -v "$PWD/src:/src" \
@@ -94,13 +117,121 @@ jobs:
             bash -euc 'go version && CGO_ENABLED=1 go build -buildvcs=false -tags "fts5 sqlcipher" -ldflags "-s -w" -o /out/kernel .'
           ls -l server/kernel
 
-      - name: Compress server to server.tar.xz
+      - name: 压缩 server 为 server.tar.xz
         run: |
           tar -cJf server.tar.xz server
           ls -lh server.tar.xz
 
-      - name: Upload artifact
+      - name: 上传 server.tar.xz 作为 Artifact
         uses: actions/upload-artifact@v7
         with:
-          name: server-${{ matrix.arch }}
+          name: server-${{ matrix.platform }}
           path: server.tar.xz
+          if-no-files-found: error
+
+  # ========== 第二步：在宿主机打包 fpk ==========
+  package:
+    name: 打包 fpk
+    needs: build-server
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: x86
+          - os: ubuntu-24.04-arm
+            platform: arm
+    runs-on: ${{ matrix.os }}
+    outputs:
+      app_name: ${{ steps.set_vars.outputs.app_name }}
+      version: ${{ steps.set_vars.outputs.version }}
+      changelog: ${{ steps.set_vars.outputs.changelog }}
+    steps:
+      - name: 设置项目变量
+        id: set_vars
+        run: |
+          echo "app_name=${{ needs.build-server.outputs.app_name }}" >> $GITHUB_OUTPUT
+          echo "version=${{ needs.build-server.outputs.version }}" >> $GITHUB_OUTPUT
+          echo "changelog=${{ needs.build-server.outputs.changelog }}" >> $GITHUB_OUTPUT
+
+      - name: 下载对应架构的 server.tar.xz
+        uses: actions/download-artifact@v7
+        with:
+          name: server-${{ matrix.platform }}
+          path: ./server_artifact
+
+      - name: 检出 buildbot 仓库
+        uses: actions/checkout@v7
+        with:
+          path: buildbot_repo
+
+      - name: 准备 fnpack 工作区
+        run: |
+          mkdir -p build_workspace
+          cp -r "buildbot_repo/fnpack/${{ needs.build-server.outputs.app_name }}" build_workspace/
+          if [ "${{ matrix.platform }}" = "x86" ]; then
+            FNPACK_BIN="fnpack-1.2.3-linux-amd64"
+          else
+            FNPACK_BIN="fnpack-1.2.3-linux-arm64"
+          fi
+          cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
+          chmod +x build_workspace/fnpack
+
+      - name: 复制 server.tar.xz 到 app 目录
+        run: |
+          APP_DIR="build_workspace/Siyuan/app"
+          mkdir -p "$APP_DIR"
+          cp ./server_artifact/server.tar.xz "$APP_DIR/"
+          echo "复制完成，app 目录内容："
+          ls -la "$APP_DIR"
+
+      - name: 修改 manifest 文件
+        run: |
+          MANIFEST_PATH="build_workspace/Siyuan/manifest"
+          if [ ! -f "$MANIFEST_PATH" ]; then
+            echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
+            exit 1
+          fi
+          VERSION="${{ needs.build-server.outputs.version }}"
+          CHANGELOG="${{ needs.build-server.outputs.changelog }}"
+          sudo apt-get update && sudo apt-get install -y jq
+          ESCAPED_CHANGELOG=$(printf '%s' "$CHANGELOG" | jq -sRr @json)
+          sed -i "s/\${VERSION}/$VERSION/g" "$MANIFEST_PATH"
+          sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
+          sed -i "s/\${PLATFORM}/${{ matrix.platform }}/g" "$MANIFEST_PATH"
+          echo "manifest 修改后的内容："
+          cat "$MANIFEST_PATH"
+
+      - name: 执行 fnpack 打包
+        run: |
+          cd build_workspace
+          ./fnpack build Siyuan
+          FPK_FILE=$(ls *.fpk | head -n 1)
+          if [ -z "$FPK_FILE" ]; then
+            echo "错误：未找到生成的 fpk 文件"
+            exit 1
+          fi
+          FINAL_NAME="Siyuan-${{ needs.build-server.outputs.version }}-${{ matrix.platform }}.fpk"
+          mv "$FPK_FILE" "$FINAL_NAME"
+          echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
+          echo "打包完成，生成文件：$FINAL_NAME"
+          ls -la *.fpk
+
+      - name: 上传 fpk 文件作为 Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: fpk-${{ matrix.platform }}
+          path: build_workspace/*.fpk
+          if-no-files-found: error
+
+  # ========== 第三步：发布到 Fndepot ==========
+  publish:
+    name: 发布到 Fndepot Release
+    needs: package
+    if: always() && needs.package.result == 'success' && github.event.inputs.publish == 'true'
+    uses: ./.github/workflows/Publish.yaml
+    with:
+      app_name: ${{ needs.package.outputs.app_name }}
+      manifest_version: ${{ needs.package.outputs.version }}
+      changelog: ${{ needs.package.outputs.changelog }}
+    secrets:
+      BUILDBOT: ${{ secrets.BUILDBOT }}
