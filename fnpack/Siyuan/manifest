@@ -1,0 +1,16 @@
+appname=Siyuan
+version=${VERSION}
+display_name=思源笔记
+desc="""<p>📔思源笔记是一款隐私优先的个人知识管理系统，支持细粒度块级引用和 Markdown 所见即所得。</p>"""
+platform=${PLATFORM}
+source=thirdparty
+maintainer=siyuan-note
+maintainer_url=https://github.com/siyuan-note/siyuan
+distributor=shuangji66
+distributor_url=https://github.com/shuangji66/FnDepot
+ctl_stop=true
+desktop_uidir=ui
+desktop_applaunchname=Siyuan.Application
+checkport=false
+disable_authorization_path=false
+changelog=${CHANGELOG}
