@@ -7,14 +7,14 @@
       "control": {
         "accessPerm": "editable"
       },
-      "protocol": "http",
-      "gatewayPrefix": "",
-      "gatewaySocket": "",
+      "protocol": "",
+      "gatewayPrefix": "/app/NextExplorer",
+      "gatewaySocket": "app.sock",
       "title": "NextExplorer",
       "icon": "images/icon_{0}.png",
-      "type": "url",
-      "port": "${port}",
-      "url": ""
+      "type": "iframe",
+      "port": "",
+      "url": "/app/NextExplorer"
     }
   }
 }
