@@ -1,21 +1,51 @@
 name: Build NextExplorer and Release
 
+# 与上游脚本的差异（逐条可核对）：
+#   1. 源码不再 git clone nxzai/NextExplorer，改为检出自己 fork（source_repository / source_ref 可改）
+#   2. 新增 baseurl 输入：前端编译期注入 --base 与 VITE_API_URL，与飞牛网关的挂载路径一致
+#   3. 编译后校验产物里确实带上前缀（HTML 资源路径硬校验，apiBase 字面量软校验），
+#      免得打出一个 UI 全 404 的 fpk 才发现
+#   4. 校验前端源码已合入子路径补丁（源码里不再有写死的根路径 logo / 分享链接 / manifest 图标）
+#   5. set -euo pipefail + 权限最小化 + npm/工具链缓存
 on:
   workflow_dispatch:
     inputs:
       manifest_version:
-        description: 'manifest 中的版本号（例如 3.1.0）'
+        description: 'manifest 中的版本号（例如 3.11.1）'
         required: true
         type: string
       changelog:
         description: '更新日志（支持中文）'
         required: true
         type: string
+      baseurl:
+        description: '应用挂载子路径（须与飞牛网关一致，例如 /app/NextExplorer）'
+        required: true
+        type: string
+        default: '/app/NextExplorer'
+      source_repository:
+        description: '源码仓库（fork）'
+        required: false
+        type: string
+        default: 'shuangji66/NextExplorer'
+      source_ref:
+        description: '源码分支或 tag'
+        required: false
+        type: string
+        default: 'main'
+      apply_patch:
+        description: '若源码补丁未合入，是否自动应用 source-patches/0001-*.patch'
+        required: false
+        type: boolean
+        default: false
       publish:
         description: '是否发布到 Fndepot Release'
         required: false
         type: boolean
         default: true
+
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -34,6 +64,9 @@ jobs:
             poppler_arch: aarch64
     runs-on: ${{ matrix.os }}
     container: debian:bookworm
+    defaults:
+      run:
+        shell: bash
     outputs:
       app_name: ${{ steps.set_vars.outputs.app_name }}
       manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
@@ -41,26 +74,52 @@ jobs:
     steps:
       - name: 设置项目变量
         id: set_vars
+        env:
+          BASEURL_RAW: ${{ github.event.inputs.baseurl }}
         run: |
+          set -euo pipefail
           APP_NAME="NextExplorer"
           MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
           CHANGELOG="${{ github.event.inputs.changelog }}"
-          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
-          echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
-          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+
+          # 统一前缀形态：去掉尾斜杠，确保以 / 开头。后面的编译、manifest、
+          # 运行时都由这一个值派生，避免三处各写一遍而写歪。
+          BASEURL="$(printf '%s' "$BASEURL_RAW" | tr -d '[:space:]')"
+          BASEURL="/${BASEURL#/}"
+          BASEURL="${BASEURL%/}"
+          if [ -z "$BASEURL" ] || [ "$BASEURL" = "/" ]; then
+            echo "错误：baseurl 不能为空，必须形如 /app/NextExplorer"
+            exit 1
+          fi
+          case "$BASEURL" in
+            /api|/static|/assets|/browse|/settings|/share|/editor|/login)
+              echo "错误：baseurl=$BASEURL 与应用自身路由冲突，请换一个前缀"
+              exit 1
+              ;;
+          esac
+          echo "BASEURL=$BASEURL" >> "$GITHUB_ENV"
+
+          echo "app_name=$APP_NAME" >> "$GITHUB_OUTPUT"
+          echo "manifest_version=$MANIFEST_VERSION" >> "$GITHUB_OUTPUT"
+          echo "changelog=$CHANGELOG" >> "$GITHUB_OUTPUT"
+          echo "baseurl=$BASEURL" >> "$GITHUB_OUTPUT"
+          echo "构建前缀：$BASEURL"
 
       - name: 安装依赖（Node.js、jq、git等）
         run: |
+          set -euo pipefail
           apt-get update
           apt-get install -y curl wget git jq xz-utils zstd file
           curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
           apt-get install -y nodejs
+          node -v
 
       - name: 获取工具最新版本号
         id: tool_versions
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           # 7-Zip 最新版本
           SEVEN_ZIP_TAG=$(curl -fsSL \
             -H "Authorization: token $GH_TOKEN" \
@@ -108,13 +167,101 @@ jobs:
         with:
           path: buildbot_repo
 
-      - name: 克隆 NextExplorer 源码
+      # 上游脚本在这里 `git clone https://github.com/nxzai/NextExplorer.git`。
+      # 改成检出 fork：仓库/分支可传参，token 用于私有 fork（公开 fork 回落到
+      # 默认 GITHUB_TOKEN 即可）。
+      - name: 检出 NextExplorer 源码（fork）
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.inputs.source_repository }}
+          ref: ${{ github.event.inputs.source_ref }}
+          path: nextexplorer-src
+          token: ${{ secrets.NEXTEXPLORER_TOKEN || github.token }}
+
+      - name: 记录源码版本
+        id: src
         run: |
-          git clone https://github.com/nxzai/NextExplorer.git nextexplorer-src
-          ls -la nextexplorer-src
+          set -euo pipefail
+          cd nextexplorer-src
+          echo "commit=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "源码版本：$(git rev-parse --short HEAD) $(git log -1 --pretty=%s)"
+
+      - name: 校验源码已支持子路径挂载
+        env:
+          APPLY_PATCH: ${{ github.event.inputs.apply_patch }}
+        run: |
+          set -euo pipefail
+          cd nextexplorer-src
+          PATCH_FILE="source-patches/0001-mount-under-a-path-prefix.patch"
+
+          # 断言的是"不该再出现的东西"和"必须存在的能力"，而不是某份补丁的具体写法，
+          # 这样 fork 里换了实现方式也照样通过。
+          check_subpath_support() {
+            local missing=0
+
+            # 1) 编译期 base 之外，运行时还得会拼挂载路径（分享链接、品牌 logo）
+            grep -q "import.meta.env.BASE_URL" frontend/src/api/shares.api.js \
+              || { echo "  ✗ frontend/src/api/shares.api.js 分享链接没有考虑挂载路径"; missing=1; }
+            grep -q "import.meta.env.BASE_URL" frontend/src/stores/appSettings.js \
+              || { echo "  ✗ frontend/src/stores/appSettings.js 没有把服务端给的 logo 路径移到挂载路径下"; missing=1; }
+
+            # 2) public/ 里的静态文件不会被 Vite 改写，图标必须是相对路径
+            if grep -qE '"src"\s*:\s*"/' frontend/public/site.webmanifest; then
+              echo "  ✗ frontend/public/site.webmanifest 图标仍是根绝对路径"
+              missing=1
+            fi
+
+            # 3) 服务端拼分享链接不能丢掉 PUBLIC_URL 的路径部分
+            if grep -q "publicConfig.origin ||" backend/src/routes/shares.js \
+               && ! grep -q "publicConfig.url ||" backend/src/routes/shares.js; then
+              echo "  ✗ backend/src/routes/shares.js 仍只用 PUBLIC_URL 的 origin"
+              missing=1
+            fi
+
+            return $missing
+          }
+
+          if check_subpath_support; then
+            echo "源码已支持子路径挂载。"
+            exit 0
+          fi
+
+          # 只有勾选了 apply_patch 才动手；正常流程下补丁已经合进 fork，
+          # 这一段是为了 fork 落后于上游 / rebase 后补丁被冲掉的场景。
+          if [ "$APPLY_PATCH" = "true" ] && [ -f "$PATCH_FILE" ]; then
+            echo "尝试应用 $PATCH_FILE"
+            git apply -v "$PATCH_FILE" || git apply -3 -v "$PATCH_FILE"
+            if check_subpath_support; then
+              echo "补丁应用成功。"
+              exit 0
+            fi
+            echo "错误：补丁应用后校验仍未通过"
+          else
+            echo "错误：源码缺少子路径支持，且未自动应用补丁（勾选 apply_patch 可自动打）"
+          fi
+          echo "修复方式：把 source-patches/0001-mount-under-a-path-prefix.patch 合入 ${{ github.event.inputs.source_repository }}"
+          exit 1
+
+      - name: 缓存 npm 下载
+        continue-on-error: true
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ matrix.platform }}-${{ hashFiles('nextexplorer-src/package-lock.json') }}
+          restore-keys: npm-${{ matrix.platform }}-
+
+      - name: 缓存外部工具（7z/rg/poppler）
+        continue-on-error: true
+        id: tools_cache
+        uses: actions/cache@v4
+        with:
+          path: tools_cache
+          key: tools-${{ matrix.platform }}-${{ steps.tool_versions.outputs.seven_zip_tag }}-${{ steps.tool_versions.outputs.rg_tag }}-${{ steps.tool_versions.outputs.poppler_tag }}
 
       - name: 准备 fnpack 工作区
         run: |
+          set -euo pipefail
           mkdir -p build_workspace
           cp -r "buildbot_repo/fnpack/${{ steps.set_vars.outputs.app_name }}" build_workspace/
           if [ "${{ matrix.platform }}" = "x86" ]; then
@@ -127,6 +274,7 @@ jobs:
 
       - name: 构建 NextExplorer运行时
         run: |
+          set -euo pipefail
           mkdir -p app/backend app/frontend app/docs
           cp nextexplorer-src/package.json app/
           cp nextexplorer-src/package-lock.json app/
@@ -134,10 +282,11 @@ jobs:
           cp nextexplorer-src/frontend/package.json app/frontend/package.json
           cp nextexplorer-src/docs/package.json app/docs/package.json
           cd app
-          npm ci --omit=dev --workspace backend && npm cache clean --force
+          npm ci --omit=dev --workspace backend --no-audit --no-fund && npm cache clean --force
 
       - name: 构建 NextExplorer前端编译环境
         run: |
+          set -euo pipefail
           mkdir -p temp/backend temp/frontend temp/docs
           cp nextexplorer-src/package.json temp/
           cp nextexplorer-src/package-lock.json temp/
@@ -145,83 +294,148 @@ jobs:
           cp nextexplorer-src/frontend/package.json temp/frontend/package.json
           cp nextexplorer-src/docs/package.json temp/docs/package.json
           cd temp
-          npm ci --workspace frontend
+          npm ci --workspace frontend --no-audit --no-fund
 
+      # 关键改动：把 $BASEURL 烧进前端产物。
+      #   --base        → vue-router 的 base 与 HTML 里的资源路径
+      #   VITE_API_URL  → apiBase：所有 /api 调用、缩略图路径、终端 WebSocket
+      # 两者必须同一个值，且与飞牛网关的挂载路径一致。
       - name: 构建 NextExplorer前端
+        env:
+          VITE_GIT_COMMIT: ${{ steps.src.outputs.commit }}
+          VITE_GIT_BRANCH: ${{ github.event.inputs.source_ref }}
+          VITE_REPO_URL: https://github.com/${{ github.event.inputs.source_repository }}
         run: |
+          set -euo pipefail
           cp -r nextexplorer-src/frontend/* temp/frontend/
           cd temp
-          npm run -w frontend build -- --sourcemap false
+          echo "编译前缀：$BASEURL"
+          VITE_API_URL="$BASEURL" npm run -w frontend build -- --base="${BASEURL}/" --sourcemap false
+
+      - name: 校验前端产物已带前缀
+        run: |
+          set -euo pipefail
+          INDEX="temp/frontend/dist/index.html"
+          [ -f "$INDEX" ] || { echo "错误：未找到 $INDEX"; exit 1; }
+
+          # HTML 里的资源路径必须是 ${BASEURL}/assets/… ：Vite 一定会改写，
+          # 所以这里硬失败。写错 baseurl 会在这一步拦住，而不是打出一个
+          # 打开全是 404 的 fpk。
+          if ! grep -q "src=\"${BASEURL}/assets/" "$INDEX"; then
+            echo "错误：前端产物的资源路径没有带上 baseurl（$BASEURL）"
+            grep -oE '(src|href)="[^"]*assets[^"]*"' "$INDEX" || true
+            exit 1
+          fi
+          grep -oE '(src|href)="[^"]*"' "$INDEX" | head -10
+
+          # apiBase 字面量：压缩后的形态随构建变化，只做提示。
+          ENTRY=$(ls temp/frontend/dist/assets/index-*.js | head -1)
+          if grep -q "=\"${BASEURL}\"" "$ENTRY"; then
+            echo "apiBase 已注入：$BASEURL"
+          else
+            echo "::warning::未在 $ENTRY 中找到 apiBase=\"${BASEURL}\" 字面量，请确认 VITE_API_URL 生效（若接口请求打到站点根，就是这里没生效）"
+          fi
 
       - name: 压缩node_modules
         run: |
+          set -euo pipefail
           cd app
           tar -cJf node_modules.tar.xz node_modules
 
       - name: 组装 NextExplorer
         run: |
+          set -euo pipefail
           mkdir -p build_workspace/NextExplorer/app/server
           mv app/node_modules.tar.xz build_workspace/NextExplorer/app/server/
           mv app/package.json build_workspace/NextExplorer/app/server/
           mv nextexplorer-src/backend/src build_workspace/NextExplorer/app/server/src
           mv temp/frontend/dist build_workspace/NextExplorer/app/server/src/public
+          # 让应用自己也知道挂载路径（OIDC 回调、分享链接、WOPI 都从它派生）。
+          # 运行时脚本若读取 .env，这里的值就是外部地址+前缀。
+          printf 'PUBLIC_URL=https://<你的域名>%s\n' "$BASEURL" \
+            > build_workspace/NextExplorer/app/server/.env.example
+          echo "源码版本 ${{ steps.src.outputs.short }} / 前缀 $BASEURL" \
+            > build_workspace/NextExplorer/app/server/BUILD_INFO.txt
 
       # ========== 下载并集成 7-Zip、ripgrep、poppler-utils 到 app/utils/ ==========
       - name: 下载并提取 7-Zip
         run: |
+          set -euo pipefail
           UTILS_DIR="build_workspace/NextExplorer/app/utils"
-          mkdir -p "$UTILS_DIR"
-          SEVEN_ZIP_FILE_VER="${{ steps.tool_versions.outputs.seven_zip_file_ver }}"
-          SEVEN_ZIP_URL="https://github.com/ip7z/7zip/releases/download/${{ steps.tool_versions.outputs.seven_zip_tag }}/7z${SEVEN_ZIP_FILE_VER}-${{ matrix.seven_zip_arch }}.tar.xz"
-          echo "下载 7-Zip: $SEVEN_ZIP_URL"
-          curl -fL "$SEVEN_ZIP_URL" -o 7z.tar.xz
-          mkdir -p 7z-extract
-          tar -xJf 7z.tar.xz -C 7z-extract
-          SEVEN_ZIP_BIN=$(find 7z-extract -type f -name "7zzs" | head -1)
-          if [ -z "$SEVEN_ZIP_BIN" ]; then
-            echo "错误：未找到 7zzs"
-            exit 1
+          mkdir -p "$UTILS_DIR" tools_cache
+          cached="tools_cache/7z-${{ matrix.seven_zip_arch }}"
+          if [ ! -f "$cached" ]; then
+            SEVEN_ZIP_FILE_VER="${{ steps.tool_versions.outputs.seven_zip_file_ver }}"
+            SEVEN_ZIP_URL="https://github.com/ip7z/7zip/releases/download/${{ steps.tool_versions.outputs.seven_zip_tag }}/7z${SEVEN_ZIP_FILE_VER}-${{ matrix.seven_zip_arch }}.tar.xz"
+            echo "下载 7-Zip: $SEVEN_ZIP_URL"
+            curl -fL "$SEVEN_ZIP_URL" -o 7z.tar.xz
+            mkdir -p 7z-extract
+            tar -xJf 7z.tar.xz -C 7z-extract
+            SEVEN_ZIP_BIN=$(find 7z-extract -type f -name "7zzs" | head -1)
+            if [ -z "$SEVEN_ZIP_BIN" ]; then
+              echo "错误：未找到 7zzs"
+              exit 1
+            fi
+            cp "$SEVEN_ZIP_BIN" "$cached"
+          else
+            echo "复用缓存：$cached"
           fi
-          cp "$SEVEN_ZIP_BIN" "$UTILS_DIR/7z"
+          cp "$cached" "$UTILS_DIR/7z"
           chmod +x "$UTILS_DIR/7z"
           echo "7z 已提取到 $UTILS_DIR/7z"
           file "$UTILS_DIR/7z"
 
       - name: 下载并提取 ripgrep
         run: |
+          set -euo pipefail
           UTILS_DIR="build_workspace/NextExplorer/app/utils"
-          RG_TAG="${{ steps.tool_versions.outputs.rg_tag }}"
-          RG_URL="https://github.com/BurntSushi/ripgrep/releases/download/${RG_TAG}/ripgrep-${RG_TAG}-${{ matrix.rg_arch }}-unknown-linux-musl.tar.gz"
-          echo "下载 ripgrep: $RG_URL"
-          curl -fL "$RG_URL" -o rg.tar.gz
-          mkdir -p rg-extract
-          tar -xzf rg.tar.gz -C rg-extract
-          RG_BIN=$(find rg-extract -type f -name "rg" | head -1)
-          if [ -z "$RG_BIN" ]; then
-            echo "错误：未找到 rg"
-            exit 1
+          mkdir -p "$UTILS_DIR" tools_cache
+          cached="tools_cache/rg-${{ matrix.rg_arch }}"
+          if [ ! -f "$cached" ]; then
+            RG_TAG="${{ steps.tool_versions.outputs.rg_tag }}"
+            RG_URL="https://github.com/BurntSushi/ripgrep/releases/download/${RG_TAG}/ripgrep-${RG_TAG}-${{ matrix.rg_arch }}-unknown-linux-musl.tar.gz"
+            echo "下载 ripgrep: $RG_URL"
+            curl -fL "$RG_URL" -o rg.tar.gz
+            mkdir -p rg-extract
+            tar -xzf rg.tar.gz -C rg-extract
+            RG_BIN=$(find rg-extract -type f -name "rg" | head -1)
+            if [ -z "$RG_BIN" ]; then
+              echo "错误：未找到 rg"
+              exit 1
+            fi
+            cp "$RG_BIN" "$cached"
+          else
+            echo "复用缓存：$cached"
           fi
-          cp "$RG_BIN" "$UTILS_DIR/rg"
+          cp "$cached" "$UTILS_DIR/rg"
           chmod +x "$UTILS_DIR/rg"
           echo "rg 已提取到 $UTILS_DIR/rg"
           file "$UTILS_DIR/rg"
 
       - name: 下载并提取 poppler-utils
         run: |
+          set -euo pipefail
           UTILS_DIR="build_workspace/NextExplorer/app/utils"
-          POPPLER_FILE_VER="${{ steps.tool_versions.outputs.poppler_file_ver }}"
-          POPPLER_URL="https://github.com/unpins/poppler-utils/releases/download/${{ steps.tool_versions.outputs.poppler_tag }}/poppler-utils-${POPPLER_FILE_VER}-${{ matrix.poppler_arch }}-linux.zst"
-          echo "下载 poppler-utils: $POPPLER_URL"
-          curl -fL "$POPPLER_URL" -o poppler-utils.zst
-          zstd -d poppler-utils.zst -o poppler-utils
-          chmod +x poppler-utils
-          cp poppler-utils "$UTILS_DIR/poppler-utils"
+          mkdir -p "$UTILS_DIR" tools_cache
+          cached="tools_cache/poppler-${{ matrix.poppler_arch }}"
+          if [ ! -f "$cached" ]; then
+            POPPLER_FILE_VER="${{ steps.tool_versions.outputs.poppler_file_ver }}"
+            POPPLER_URL="https://github.com/unpins/poppler-utils/releases/download/${{ steps.tool_versions.outputs.poppler_tag }}/poppler-utils-${POPPLER_FILE_VER}-${{ matrix.poppler_arch }}-linux.zst"
+            echo "下载 poppler-utils: $POPPLER_URL"
+            curl -fL "$POPPLER_URL" -o poppler-utils.zst
+            zstd -d poppler-utils.zst -o "$cached"
+            chmod +x "$cached"
+          else
+            echo "复用缓存：$cached"
+          fi
+          cp "$cached" "$UTILS_DIR/poppler-utils"
           echo "poppler-utils 已提取到 $UTILS_DIR/poppler-utils"
           file "$UTILS_DIR/poppler-utils"
       # =============================================================================
 
       - name: 修改 manifest 文件
         run: |
+          set -euo pipefail
           MANIFEST_PATH="build_workspace/${{ steps.set_vars.outputs.app_name }}/manifest"
           if [ ! -f "$MANIFEST_PATH" ]; then
             echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
@@ -233,11 +447,15 @@ jobs:
           sed -i "s/\${VERSION}/$MANIFEST_VERSION/g" "$MANIFEST_PATH"
           sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
           sed -i "s/\${PLATFORM}/${{ matrix.platform }}/g" "$MANIFEST_PATH"
+          # 模板里若有 ${BASEURL} 占位（网关路由/启动参数），一并替换；
+          # 没有这个占位时 sed 不匹配任何内容，等于空操作。
+          sed -i "s|\${BASEURL}|$BASEURL|g" "$MANIFEST_PATH"
           echo "manifest 修改后的内容："
           cat "$MANIFEST_PATH"
 
       - name: 执行 fnpack 打包
         run: |
+          set -euo pipefail
           cd build_workspace
           ./fnpack build "${{ steps.set_vars.outputs.app_name }}"
           FPK_FILE=$(ls *.fpk | head -n 1)
