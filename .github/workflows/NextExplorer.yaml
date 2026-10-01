@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       manifest_version:
-        description: 'manifest 中的版本号（例如 3.11.1）'
+        description: 'manifest 中的版本号（例如 3.1.0）'
         required: true
         type: string
       changelog:
@@ -238,7 +238,7 @@ jobs:
             fi
             echo "错误：补丁应用后校验仍未通过"
           else
-            echo "错误：源码缺少子路径支持，且未自动应用补丁（勾选 apply_patch 可自动打）"
+            echo "错误：源码缺少子路径支持，且未自动应用补丁（勾选 apply_patch 可由流水线现场打，需要仓库里存在 $PATCH_FILE）"
           fi
           echo "修复方式：把 source-patches/0001-mount-under-a-path-prefix.patch 合入 ${{ github.event.inputs.source_repository }}"
           exit 1
@@ -328,12 +328,23 @@ jobs:
           fi
           grep -oE '(src|href)="[^"]*"' "$INDEX" | head -10
 
-          # apiBase 字面量：压缩后的形态随构建变化，只做提示。
-          ENTRY=$(ls temp/frontend/dist/assets/index-*.js | head -1)
-          if grep -q "=\"${BASEURL}\"" "$ENTRY"; then
+          # apiBase 字面量：入口 chunk 必须从 index.html 里取——assets/ 下还有几十个
+          # 同样叫 index-*.js 的懒加载 chunk，ls|head -1 取到的往往不是入口。
+          ENTRY_REL=$(grep -oE 'src="[^"]*assets/index-[^"]*\.js"' "$INDEX" | head -1 | sed 's/^src="//; s/"$//')
+          ENTRY="temp/frontend/dist${ENTRY_REL#${BASEURL}}"
+          if [ ! -f "$ENTRY" ]; then
+            echo "错误：从 index.html 取到的入口文件不存在：$ENTRY"
+            exit 1
+          fi
+          echo "入口 chunk：$ENTRY"
+
+          # 压缩/折叠后的形态随构建变化（实测为 const x="/前缀".replace(/\/$/,"")），
+          # 所以两种形态都认，且只告警不失败——真正的判据是"接口请求是否带前缀"，
+          # 那要在运行期测（见 gateway-proxy 的端到端套件）。
+          if grep -qF "\"${BASEURL}\".replace(" "$ENTRY" || grep -qF "=\"${BASEURL}\"" "$ENTRY"; then
             echo "apiBase 已注入：$BASEURL"
           else
-            echo "::warning::未在 $ENTRY 中找到 apiBase=\"${BASEURL}\" 字面量，请确认 VITE_API_URL 生效（若接口请求打到站点根，就是这里没生效）"
+            echo "::warning::未在入口 chunk 中找到 apiBase=\"${BASEURL}\"（VITE_API_URL 可能没生效：接口请求会打到站点根）"
           fi
 
       - name: 压缩node_modules
