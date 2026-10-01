@@ -13,6 +13,7 @@
           }
         ],
         "options": [],
+        "helpText": "仅内部调用，不可访问",
         "initValue": "3234"
       }
     ]
