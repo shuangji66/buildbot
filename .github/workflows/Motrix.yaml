@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Pull motrixapp/motrix-server:latest
-        run: docker pull motrixapp/motrix-server:latest
+        run: docker pull motrixapp/motrix-server:2.0.0-beta.44
 
       - name: Install xz-utils and create server.tar.xz inside container
         run: |
