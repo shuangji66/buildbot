@@ -141,7 +141,7 @@ jobs:
         run: |
           set -euxo pipefail
           # 使用 glibc 版本的 aria2 引擎
-          node scripts/fetch-engine.mjs --platform linux --arch "${ENGINE_ARCH}" --libc "${TARGET_LIBC}"
+          node scripts/fetch-engine.mjs --platform linux --arch "${ENGINE_ARCH}"
           pnpm run check:third-party-notices
           pnpm run build:server
 
