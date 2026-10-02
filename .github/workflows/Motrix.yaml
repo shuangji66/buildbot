@@ -28,6 +28,7 @@ jobs:
       - name: Install xz-utils and create server.tar.xz inside container
         run: |
           docker run --rm \
+            --user root \
             -v ${{ github.workspace }}:/workspace \
             --workdir /app \
             motrixapp/motrix-server:${{ inputs.image_tag }} \
