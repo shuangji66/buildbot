@@ -1,50 +1,248 @@
-name: Extract and Package Motrix Server
+name: Build Motrix Server (Debian 12 container)
 
 on:
   workflow_dispatch:
     inputs:
-      image_tag:
-        description: 'motrixapp/motrix-server image tag'
+      ref:
+        description: "Motrix git ref to build (branch / tag / SHA). Empty = default branch."
         required: false
-        default: '2.0.0-beta.44'
+        default: ""
         type: string
 
+
+permissions:
+  contents: read
+
+concurrency:
+  group: motrix-server-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  package:
+  build:
+    name: server (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - runner: ubuntu-24.04
             arch: amd64
+            engine_arch: x64
+            node_arch: x64
           - runner: ubuntu-24.04-arm
             arch: arm64
-    runs-on: ${{ matrix.runner }}
-
+            engine_arch: arm64
+            node_arch: arm64
+    container:
+      image: debian:12
+      options: --user root
+    defaults:
+      run:
+        shell: bash
+    env:
+      MOTRIX_ROOT: /var/apps/Motrix
+      TARGET_DIR: /var/apps/Motrix/target/server
+      TARGET_ARCH: ${{ matrix.arch }}
+      ENGINE_ARCH: ${{ matrix.engine_arch }}
+      MOTRIX_SKIP_ELECTRON_REBUILD: "1"
+      MOTRIX_SKIP_ENGINE_FETCH: "1"
+      MOTRIX_SERVER_FINALIZE_FS_PREBUILT: "1"
+      CI: "true"
     steps:
-      - name: Pull motrixapp/motrix-server:${{ inputs.image_tag }}
-        run: docker pull motrixapp/motrix-server:${{ inputs.image_tag }}
-
-      - name: Install xz-utils and create server.tar.xz inside container
+      - name: Show environment
         run: |
-          docker run --rm \
-            --user root \
-            -v ${{ github.workspace }}:/workspace \
-            --workdir /app \
-            motrixapp/motrix-server:${{ inputs.image_tag }} \
-            sh -c "
-              apk add --no-cache xz && \
-              tar -cJf /workspace/server.tar.xz -C /app .
-            "
+          uname -a
+          cat /etc/os-release
 
-      - name: Verify archive
+      # ---------------------------------------------------------------
+      # 基础工具链 + xz-utils
+      # ---------------------------------------------------------------
+      - name: Install build toolchain and xz-utils
         run: |
-          ls -lh server.tar.xz
-          file server.tar.xz
+          set -euxo pipefail
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates curl git xz-utils file \
+            build-essential python3 make g++ pkg-config libssl-dev
+          rm -rf /var/lib/apt/lists/*
 
+      # ---------------------------------------------------------------
+      # Node 24（官方 tarball，对应 Dockerfile 里的 node:24-alpine）
+      # ---------------------------------------------------------------
+      - name: Install Node.js 24
+        run: |
+          set -euxo pipefail
+          BASE="https://nodejs.org/dist/latest-v24.x"
+          TARBALL="$(curl -fsSL "$BASE/" \
+            | grep -oE "node-v24\.[0-9]+\.[0-9]+-linux-${{ matrix.node_arch }}\.tar\.xz" \
+            | head -n1)"
+          echo "Installing ${TARBALL}"
+          curl -fsSL -o /tmp/node.tar.xz "$BASE/$TARBALL"
+          tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1
+          rm -f /tmp/node.tar.xz
+          node --version
+          npm --version
+
+      # ---------------------------------------------------------------
+      # pnpm 12.8.1 via corepack（对应 Dockerfile 里的 corepack prepare）
+      # ---------------------------------------------------------------
+      - name: Enable pnpm 12.8.1 via corepack
+        run: |
+          set -euxo pipefail
+          corepack enable
+          corepack prepare pnpm@12.8.1 --activate
+          pnpm --version
+
+      # ---------------------------------------------------------------
+      # Rust 1.94.1（对应 Dockerfile 里的 rust:1.94.1-alpine）
+      # ---------------------------------------------------------------
+      - name: Install Rust 1.94.1
+        run: |
+          set -euxo pipefail
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --default-toolchain 1.94.1 --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.cargo/bin/rustc" --version
+          "$HOME/.cargo/bin/cargo" --version
+
+      # ---------------------------------------------------------------
+      # 拉取 Motrix 源码到 /var/apps/Motrix
+      # ---------------------------------------------------------------
+      - name: Fetch Motrix sources
+        env:
+          MOTRIX_REF: ${{ inputs.ref }}
+        run: |
+          set -euxo pipefail
+          mkdir -p /var/apps
+          rm -rf "$MOTRIX_ROOT"
+          git clone https://github.com/agalwood/Motrix.git "$MOTRIX_ROOT"
+          cd "$MOTRIX_ROOT"
+          if [ -n "${MOTRIX_REF:-}" ]; then
+            git checkout "$MOTRIX_REF"
+          fi
+          git rev-parse HEAD
+          ls -la
+
+      # ===============================================================
+      # 阶段一：构建 Rust 辅助程序（对应 finalize-fs-build 阶段）
+      #   WORKDIR /src
+      #   COPY Cargo.toml Cargo.lock ./
+      #   COPY src ./src
+      #   RUN cargo build --release --locked
+      # ===============================================================
+      - name: Build finalize-fs (Rust, --release --locked)
+        run: |
+          set -euxo pipefail
+          export PATH="$HOME/.cargo/bin:$PATH"
+          rm -rf /tmp/finalize-fs-build
+          mkdir -p /tmp/finalize-fs-build
+          cp "$MOTRIX_ROOT/packages/finalize-fs/Cargo.toml" /tmp/finalize-fs-build/
+          cp "$MOTRIX_ROOT/packages/finalize-fs/Cargo.lock" /tmp/finalize-fs-build/
+          cp -a "$MOTRIX_ROOT/packages/finalize-fs/src" /tmp/finalize-fs-build/src
+          cd /tmp/finalize-fs-build
+          cargo build --release --locked
+          file target/release/motrix-finalize-fs || true
+
+      # ===============================================================
+      # 阶段二：安装依赖（对应 deps 阶段的 pnpm install）
+      # ===============================================================
+      - name: pnpm install --frozen-lockfile
+        working-directory: /var/apps/Motrix
+        run: |
+          set -euxo pipefail
+          pnpm config set store-dir /var/apps/.pnpm-store
+          pnpm install --frozen-lockfile
+
+      # ===============================================================
+      # 阶段三：构建 server（对应 build 阶段）
+      # ===============================================================
+
+      - name: Stage prebuilt finalize-fs binary
+        working-directory: /var/apps/Motrix
+        run: |
+          set -euxo pipefail
+          DEST="packages/finalize-fs/dist/linux-${ENGINE_ARCH}"
+          mkdir -p "$DEST"
+          install -m 0755 /tmp/finalize-fs-build/target/release/motrix-finalize-fs \
+            "$DEST/motrix-finalize-fs"
+          ls -la "$DEST"
+
+      - name: Run Electron install script (license payload)
+        working-directory: /var/apps/Motrix
+        run: |
+          set -euxo pipefail
+          node node_modules/electron/install.js
+
+      - name: Fetch aria2 engine + build server
+        working-directory: /var/apps/Motrix
+        run: |
+          set -euxo pipefail
+          node scripts/fetch-engine.mjs --platform linux --arch "${ENGINE_ARCH}"
+          pnpm run check:third-party-notices
+          pnpm run build:server
+
+      - name: finalize-fs integration test
+        working-directory: /var/apps/Motrix
+        run: |
+          set -euxo pipefail
+          MOTRIX_FINALIZE_FS_TEST_BIN="packages/finalize-fs/dist/linux-${ENGINE_ARCH}/motrix-finalize-fs" \
+            pnpm exec vitest run \
+              src/core/plugin/finalize/native-artifact-operations.integration.test.ts \
+              --reporter=verbose
+
+      - name: Stage + verify server package
+        working-directory: /var/apps/Motrix
+        run: |
+          set -euxo pipefail
+          node scripts/stage-server-app.mjs \
+            --platform linux \
+            --arch "${TARGET_ARCH}" \
+            --libc musl \
+            --strict
+          node scripts/verify-server-package.mjs \
+            --app-dir dist/server-app \
+            --platform linux \
+            --arch "${TARGET_ARCH}" \
+            --libc musl
+
+      # ===============================================================
+      # 阶段四：落地到 /var/apps/Motrix/target/server
+      #   对应 runtime 阶段：COPY --from=build /app/dist/server-app/ ./
+      # ===============================================================
+      - name: Assemble /var/apps/Motrix/target/server
+        run: |
+          set -euxo pipefail
+          rm -rf "${TARGET_DIR}"
+          mkdir -p "${TARGET_DIR}"
+          cp -a "${MOTRIX_ROOT}/dist/server-app/." "${TARGET_DIR}/"
+          test -x "${TARGET_DIR}/bin/aria2c"
+          test -x "${TARGET_DIR}/bin/motrix-finalize-fs"
+          ls -la "${TARGET_DIR}"
+
+      # ===============================================================
+      # 阶段五：原地压缩为 server.tar.xz
+      # ===============================================================
+      - name: Compress server directory in place -> server.tar.xz
+        run: |
+          set -euxo pipefail
+          cd /var/apps/Motrix/target
+          rm -f server.tar.xz server.tar.xz.sha256
+          tar -cJf server.tar.xz server
+          sha256sum server.tar.xz > server.tar.xz.sha256
+          ls -lh server.tar.xz server.tar.xz.sha256
+          cat server.tar.xz.sha256
+          tar -tJf server.tar.xz | head -n 40
+
+      # ===============================================================
+      # 上传构建物
+      # ===============================================================
       - name: Upload server.tar.xz
         uses: actions/upload-artifact@v7
         with:
-          name: server-${{ matrix.arch }}
-          path: server.tar.xz
+          name: motrix-server-linux-${{ matrix.arch }}
+          path: |
+            /var/apps/Motrix/target/server.tar.xz
+            /var/apps/Motrix/target/server.tar.xz.sha256
           if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
