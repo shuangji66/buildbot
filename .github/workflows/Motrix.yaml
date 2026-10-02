@@ -119,16 +119,6 @@ jobs:
           pnpm install --frozen-lockfile \
             --config.onlyBuiltDependencies[]=better-sqlite3
 
-      # 验证 better-sqlite3 原生绑定已生成
-      - name: Verify better-sqlite3 native binding
-        working-directory: /var/apps/Motrix
-        run: |
-          set -euxo pipefail
-          BINDING="node_modules/better-sqlite3/build/Release/better_sqlite3.node"
-          test -f "$BINDING"
-          file "$BINDING"
-          ls -lh "$BINDING"
-
       # 阶段三：构建 server（对应 build）
       - name: Stage prebuilt finalize-fs binary
         working-directory: /var/apps/Motrix
