@@ -115,7 +115,8 @@ jobs:
         run: |
           set -euxo pipefail
           pnpm config set store-dir /var/apps/.pnpm-store
-          pnpm install --frozen-lockfile
+          pnpm install --frozen-lockfile \
+            --config.onlyBuiltDependencies[]=better-sqlite3
 
       # 阶段三：构建 server（对应 build）
       - name: Stage prebuilt finalize-fs binary
