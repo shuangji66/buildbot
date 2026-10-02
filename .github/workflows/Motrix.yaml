@@ -2,13 +2,6 @@ name: Build Motrix Server (Debian 12 container)
 
 on:
   workflow_dispatch:
-    inputs:
-      ref:
-        description: "Motrix git ref to build (branch / tag / SHA). Empty = default branch."
-        required: false
-        default: ""
-        type: string
-
 
 permissions:
   contents: read
@@ -54,9 +47,6 @@ jobs:
           uname -a
           cat /etc/os-release
 
-      # ---------------------------------------------------------------
-      # 基础工具链 + xz-utils
-      # ---------------------------------------------------------------
       - name: Install build toolchain and xz-utils
         run: |
           set -euxo pipefail
@@ -66,9 +56,6 @@ jobs:
             build-essential python3 make g++ pkg-config libssl-dev
           rm -rf /var/lib/apt/lists/*
 
-      # ---------------------------------------------------------------
-      # Node 24（官方 tarball，对应 Dockerfile 里的 node:24-alpine）
-      # ---------------------------------------------------------------
       - name: Install Node.js 24
         run: |
           set -euxo pipefail
@@ -83,9 +70,6 @@ jobs:
           node --version
           npm --version
 
-      # ---------------------------------------------------------------
-      # pnpm 12.8.1 via corepack（对应 Dockerfile 里的 corepack prepare）
-      # ---------------------------------------------------------------
       - name: Enable pnpm 12.8.1 via corepack
         run: |
           set -euxo pipefail
@@ -93,9 +77,6 @@ jobs:
           corepack prepare pnpm@12.8.1 --activate
           pnpm --version
 
-      # ---------------------------------------------------------------
-      # Rust 1.94.1（对应 Dockerfile 里的 rust:1.94.1-alpine）
-      # ---------------------------------------------------------------
       - name: Install Rust 1.94.1
         run: |
           set -euxo pipefail
@@ -105,31 +86,16 @@ jobs:
           "$HOME/.cargo/bin/rustc" --version
           "$HOME/.cargo/bin/cargo" --version
 
-      # ---------------------------------------------------------------
-      # 拉取 Motrix 源码到 /var/apps/Motrix
-      # ---------------------------------------------------------------
       - name: Fetch Motrix sources
-        env:
-          MOTRIX_REF: ${{ inputs.ref }}
         run: |
           set -euxo pipefail
           mkdir -p /var/apps
           rm -rf "$MOTRIX_ROOT"
           git clone https://github.com/agalwood/Motrix.git "$MOTRIX_ROOT"
           cd "$MOTRIX_ROOT"
-          if [ -n "${MOTRIX_REF:-}" ]; then
-            git checkout "$MOTRIX_REF"
-          fi
           git rev-parse HEAD
-          ls -la
 
-      # ===============================================================
-      # 阶段一：构建 Rust 辅助程序（对应 finalize-fs-build 阶段）
-      #   WORKDIR /src
-      #   COPY Cargo.toml Cargo.lock ./
-      #   COPY src ./src
-      #   RUN cargo build --release --locked
-      # ===============================================================
+      # 阶段一：构建 Rust 辅助程序（对应 finalize-fs-build）
       - name: Build finalize-fs (Rust, --release --locked)
         run: |
           set -euxo pipefail
@@ -143,9 +109,7 @@ jobs:
           cargo build --release --locked
           file target/release/motrix-finalize-fs || true
 
-      # ===============================================================
-      # 阶段二：安装依赖（对应 deps 阶段的 pnpm install）
-      # ===============================================================
+      # 阶段二：安装依赖（对应 deps）
       - name: pnpm install --frozen-lockfile
         working-directory: /var/apps/Motrix
         run: |
@@ -153,10 +117,7 @@ jobs:
           pnpm config set store-dir /var/apps/.pnpm-store
           pnpm install --frozen-lockfile
 
-      # ===============================================================
-      # 阶段三：构建 server（对应 build 阶段）
-      # ===============================================================
-
+      # 阶段三：构建 server（对应 build）
       - name: Stage prebuilt finalize-fs binary
         working-directory: /var/apps/Motrix
         run: |
@@ -195,20 +156,12 @@ jobs:
         run: |
           set -euxo pipefail
           node scripts/stage-server-app.mjs \
-            --platform linux \
-            --arch "${TARGET_ARCH}" \
-            --libc musl \
-            --strict
+            --platform linux --arch "${TARGET_ARCH}" --libc musl --strict
           node scripts/verify-server-package.mjs \
-            --app-dir dist/server-app \
-            --platform linux \
-            --arch "${TARGET_ARCH}" \
-            --libc musl
+            --app-dir dist/server-app --platform linux \
+            --arch "${TARGET_ARCH}" --libc musl
 
-      # ===============================================================
-      # 阶段四：落地到 /var/apps/Motrix/target/server
-      #   对应 runtime 阶段：COPY --from=build /app/dist/server-app/ ./
-      # ===============================================================
+      # 阶段四：落地到 /var/apps/Motrix/target/server（对应 runtime）
       - name: Assemble /var/apps/Motrix/target/server
         run: |
           set -euxo pipefail
@@ -219,9 +172,7 @@ jobs:
           test -x "${TARGET_DIR}/bin/motrix-finalize-fs"
           ls -la "${TARGET_DIR}"
 
-      # ===============================================================
       # 阶段五：原地压缩为 server.tar.xz
-      # ===============================================================
       - name: Compress server directory in place -> server.tar.xz
         run: |
           set -euxo pipefail
@@ -231,11 +182,9 @@ jobs:
           sha256sum server.tar.xz > server.tar.xz.sha256
           ls -lh server.tar.xz server.tar.xz.sha256
           cat server.tar.xz.sha256
-          tar -tJf server.tar.xz | head -n 40
+          # head 提前退出会向 tar 发 SIGPIPE，pipefail 下导致 141，此处容忍
+          tar -tJf server.tar.xz | head -n 40 || true
 
-      # ===============================================================
-      # 上传构建物
-      # ===============================================================
       - name: Upload server.tar.xz
         uses: actions/upload-artifact@v7
         with:
