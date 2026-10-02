@@ -2,6 +2,12 @@ name: Extract and Package Motrix Server
 
 on:
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'motrixapp/motrix-server image tag'
+        required: false
+        default: '2.0.0-beta.44'
+        type: string
 
 jobs:
   package:
@@ -16,17 +22,17 @@ jobs:
     runs-on: ${{ matrix.runner }}
 
     steps:
-      - name: Pull motrixapp/motrix-server:latest
-        run: docker pull motrixapp/motrix-server:2.0.0-beta.44
+      - name: Pull motrixapp/motrix-server:${{ inputs.image_tag }}
+        run: docker pull motrixapp/motrix-server:${{ inputs.image_tag }}
 
       - name: Install xz-utils and create server.tar.xz inside container
         run: |
           docker run --rm \
             -v ${{ github.workspace }}:/workspace \
             --workdir /app \
-            motrixapp/motrix-server:2.0.0-beta.44 \
-            bash -c "
-              apt-get update && apt-get install -y xz-utils && \
+            motrixapp/motrix-server:${{ inputs.image_tag }} \
+            sh -c "
+              apk add --no-cache xz && \
               tar -cJf /workspace/server.tar.xz -C /app .
             "
 
