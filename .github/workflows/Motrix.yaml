@@ -1,0 +1,43 @@
+name: Extract and Package Motrix Server
+
+on:
+  workflow_dispatch:
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Pull motrixapp/motrix-server:latest
+        run: docker pull motrixapp/motrix-server:latest
+
+      - name: Install xz-utils and create server.tar.xz inside container
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            --workdir /app \
+            motrixapp/motrix-server:latest \
+            bash -c "
+              apt-get update && apt-get install -y xz-utils && \
+              tar -cJf /workspace/server.tar.xz -C /app .
+            "
+
+      - name: Verify archive
+        run: |
+          ls -lh server.tar.xz
+          file server.tar.xz
+
+      - name: Upload server.tar.xz
+        uses: actions/upload-artifact@v7
+        with:
+          name: server-${{ matrix.arch }}
+          path: server.tar.xz
+          if-no-files-found: error
