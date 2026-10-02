@@ -1,4 +1,4 @@
-name: Build Motrix Server (Debian 12 container)
+name: Build Motrix Server (Debian 12 container, glibc)
 
 on:
   workflow_dispatch:
@@ -7,12 +7,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: motrix-server-${{ github.ref }}
+  group: motrix-server-glibc-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
-    name: server (${{ matrix.arch }})
+    name: server-glibc (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -37,6 +37,7 @@ jobs:
       TARGET_DIR: /var/apps/Motrix/target/server
       TARGET_ARCH: ${{ matrix.arch }}
       ENGINE_ARCH: ${{ matrix.engine_arch }}
+      TARGET_LIBC: glibc
       MOTRIX_SKIP_ELECTRON_REBUILD: "1"
       MOTRIX_SKIP_ENGINE_FETCH: "1"
       MOTRIX_SERVER_FINALIZE_FS_PREBUILT: "1"
@@ -118,6 +119,16 @@ jobs:
           pnpm install --frozen-lockfile \
             --config.onlyBuiltDependencies[]=better-sqlite3
 
+      # 验证 better-sqlite3 原生绑定已生成
+      - name: Verify better-sqlite3 native binding
+        working-directory: /var/apps/Motrix
+        run: |
+          set -euxo pipefail
+          BINDING="node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+          test -f "$BINDING"
+          file "$BINDING"
+          ls -lh "$BINDING"
+
       # 阶段三：构建 server（对应 build）
       - name: Stage prebuilt finalize-fs binary
         working-directory: /var/apps/Motrix
@@ -135,11 +146,12 @@ jobs:
           set -euxo pipefail
           node node_modules/electron/install.js
 
-      - name: Fetch aria2 engine + build server
+      - name: Fetch aria2 engine (glibc) + build server
         working-directory: /var/apps/Motrix
         run: |
           set -euxo pipefail
-          node scripts/fetch-engine.mjs --platform linux --arch "${ENGINE_ARCH}"
+          # 使用 glibc 版本的 aria2 引擎
+          node scripts/fetch-engine.mjs --platform linux --arch "${ENGINE_ARCH}" --libc "${TARGET_LIBC}"
           pnpm run check:third-party-notices
           pnpm run build:server
 
@@ -152,15 +164,16 @@ jobs:
               src/core/plugin/finalize/native-artifact-operations.integration.test.ts \
               --reporter=verbose
 
-      - name: Stage + verify server package
+      - name: Stage + verify server package (glibc)
         working-directory: /var/apps/Motrix
         run: |
           set -euxo pipefail
+          # 关键修改：将 --libc musl 改为 --libc glibc
           node scripts/stage-server-app.mjs \
-            --platform linux --arch "${TARGET_ARCH}" --libc musl --strict
+            --platform linux --arch "${TARGET_ARCH}" --libc "${TARGET_LIBC}" --strict
           node scripts/verify-server-package.mjs \
             --app-dir dist/server-app --platform linux \
-            --arch "${TARGET_ARCH}" --libc musl
+            --arch "${TARGET_ARCH}" --libc "${TARGET_LIBC}"
 
       # 阶段四：落地到 /var/apps/Motrix/target/server（对应 runtime）
       - name: Assemble /var/apps/Motrix/target/server
@@ -183,13 +196,12 @@ jobs:
           sha256sum server.tar.xz > server.tar.xz.sha256
           ls -lh server.tar.xz server.tar.xz.sha256
           cat server.tar.xz.sha256
-          # head 提前退出会向 tar 发 SIGPIPE，pipefail 下导致 141，此处容忍
           tar -tJf server.tar.xz | head -n 40 || true
 
       - name: Upload server.tar.xz
         uses: actions/upload-artifact@v7
         with:
-          name: motrix-server-linux-${{ matrix.arch }}
+          name: motrix-server-linux-glibc-${{ matrix.arch }}
           path: |
             /var/apps/Motrix/target/server.tar.xz
             /var/apps/Motrix/target/server.tar.xz.sha256
