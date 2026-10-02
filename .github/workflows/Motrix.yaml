@@ -37,7 +37,7 @@ jobs:
       TARGET_DIR: /var/apps/Motrix/target/server
       TARGET_ARCH: ${{ matrix.arch }}
       ENGINE_ARCH: ${{ matrix.engine_arch }}
-      TARGET_LIBC: glibc
+      TARGET_LIBC: gnu
       MOTRIX_SKIP_ELECTRON_REBUILD: "1"
       MOTRIX_SKIP_ENGINE_FETCH: "1"
       MOTRIX_SERVER_FINALIZE_FS_PREBUILT: "1"
