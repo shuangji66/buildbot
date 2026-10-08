@@ -1,19 +1,14 @@
-name: Build Harness with dshmarket and Release
+name: Build Harness and Release
 
 on:
   workflow_dispatch:
     inputs:
       harness_version:
-        description: 'Harness 二进制版本号（例如 1.3.1，将注入到二进制中）'
+        description: 'Harness 二进制版本号（例如 1.4.0）'
         required: true
-        type: string
-      dsh_version:
-        description: 'dsh 包版本（例如 0.2.0-rc.1，或 latest）'
-        required: true
-        default: '0.2.0-rc.1'
         type: string
       manifest_version:
-        description: 'manifest 中的版本号（例如 1.0.1）'
+        description: 'manifest 中的版本号（例如 1.1.0）'
         required: true
         type: string
       changelog:
@@ -27,20 +22,31 @@ on:
         default: true
 
 jobs:
-  # ========== 第一步：构建 harness 二进制（来自 shuangji66/dsh） ==========
-  build-harness:
-    runs-on: ubuntu-24.04
+  build:
+    name: 构建并打包
     strategy:
+      fail-fast: false
       matrix:
-        arch: [amd64, arm64]
-    env:
-      HARNESS_VERSION: ${{ github.event.inputs.harness_version }}   # 从输入获取版本号
+        include:
+          - os: ubuntu-24.04
+            platform: x86
+          - os: ubuntu-24.04-arm
+            platform: arm
+    runs-on: ${{ matrix.os }}
+    outputs:
+      app_name: ${{ steps.set_vars.outputs.app_name }}
+      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
+      changelog: ${{ steps.set_vars.outputs.changelog }}
     steps:
-      - name: 检出 shuangji66/dsh 仓库
-        uses: actions/checkout@v7
-        with:
-          repository: shuangji66/dsh
-          path: dsh-src
+      - name: 设置项目变量
+        id: set_vars
+        run: |
+          APP_NAME="Harness"
+          MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          CHANGELOG="${{ github.event.inputs.changelog }}"
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
 
       - name: 安装 Node.js 24
         uses: actions/setup-node@v7
@@ -51,6 +57,12 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: '1.27'
+
+      - name: 检出 shuangji66/dsh 仓库
+        uses: actions/checkout@v7
+        with:
+          repository: shuangji66/dsh
+          path: dsh-src
 
       - name: 构建前端
         working-directory: ./dsh-src/frontend
@@ -63,300 +75,18 @@ jobs:
           mkdir -p ./dsh-src/backend/embed
           cp -r ./dsh-src/frontend/dist/* ./dsh-src/backend/embed/
 
-      - name: 构建 Go 二进制（${{ matrix.arch }}）并注入版本号
+      - name: 构建 harness 二进制（原生，注入版本号）
         working-directory: ./dsh-src/backend
+        env:
+          HARNESS_VERSION: ${{ github.event.inputs.harness_version }}
         run: |
-          GOOS=linux GOARCH=${{ matrix.arch }} CGO_ENABLED=0 \
-            go build -trimpath -ldflags="-s -w -X main.harnessVersion=$HARNESS_VERSION" -o harness-${{ matrix.arch }} .
+          CGO_ENABLED=0 go build -trimpath \
+            -ldflags="-s -w -X main.harnessVersion=$HARNESS_VERSION" \
+            -o harness .
+          ls -la harness
+          file harness
 
-      - name: 上传 artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: harness-${{ matrix.arch }}
-          path: ./dsh-src/backend/harness-${{ matrix.arch }}
-
-  # ========== 第二步：在 Debian 12 容器内构建 dsh 并生成 server.tar.xz ==========
-  build-in-container:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            platform: x86
-          - os: ubuntu-24.04-arm
-            platform: arm
-    runs-on: ${{ matrix.os }}
-    container: debian:12
-    outputs:
-      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
-      changelog: ${{ steps.set_vars.outputs.changelog }}
-    steps:
-      - name: 设置项目变量
-        id: set_vars
-        run: |
-          echo "manifest_version=${{ github.event.inputs.manifest_version }}" >> $GITHUB_OUTPUT
-          echo "changelog=${{ github.event.inputs.changelog }}" >> $GITHUB_OUTPUT
-
-      - name: 安装系统依赖和 Node.js 24
-        run: |
-          apt-get update
-          apt-get install -y curl tar jq xz-utils build-essential
-          curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
-          apt-get install -y nodejs
-          node -v
-          npm -v
-
-      - name: 打包 @deepseek-ai/dsh 并修改 package.json
-        id: pack
-        run: |
-          VERSION="${{ github.event.inputs.dsh_version }}"
-          if [ "$VERSION" = "latest" ]; then
-            VERSION=$(npm view @deepseek-ai/dsh version)
-          fi
-          PACKED=$(npm pack "@deepseek-ai/dsh@$VERSION")
-          echo "PACKED=$PACKED" >> $GITHUB_ENV
-          tar xzf "$PACKED"
-
-      - name: 添加 dshmarket 依赖
-        run: |
-          cd package
-          jq '.dependencies = (.dependencies // {} | . + {"dshmarket": "latest"})' package.json > tmp.json
-          mv tmp.json package.json
-          cat package.json
-
-      - name: 重新打包
-        run: tar czf "$PACKED" package
-
-      - name: 安装修改后的包到 /var/apps/Harness/target/server
-        run: |
-          mkdir -p /var/apps/Harness/target/server
-          cd /var/apps/Harness/target/server
-          npm init -y
-          npm install "$GITHUB_WORKSPACE/$PACKED" --prefix /var/apps/Harness/target/server
-
-      - name: 修改 dsh-app-boot 中的 PROFILE_TEMPLATES.web.bundles
-        run: |
-          FILE="/var/apps/Harness/target/server/node_modules/@deepseek-ai/dsh-app-boot/lib/index.js"
-          if [ ! -f "$FILE" ]; then
-            echo "警告：$FILE 不存在，跳过修改"
-            exit 0
-          fi
-
-          node -e "
-            const fs = require('fs');
-            const file = process.argv[1];
-            let content = fs.readFileSync(file, 'utf8');
-
-            const varName = 'PROFILE_TEMPLATES';
-            const assignIndex = content.indexOf(varName + ' = {');
-            if (assignIndex === -1) {
-              console.error('未找到 PROFILE_TEMPLATES 定义');
-              process.exit(1);
-            }
-
-            // 定位 PROFILE_TEMPLATES 对象的完整范围
-            let braceCount = 0;
-            let start = assignIndex + content.substring(assignIndex).indexOf('{');
-            let end = start;
-            for (let i = start; i < content.length; i++) {
-              if (content[i] === '{') braceCount++;
-              else if (content[i] === '}') {
-                braceCount--;
-                if (braceCount === 0) {
-                  end = i;
-                  break;
-                }
-              }
-            }
-            if (braceCount !== 0) {
-              console.error('PROFILE_TEMPLATES 大括号不匹配');
-              process.exit(1);
-            }
-
-            const fullMatch = content.substring(start, end + 1);
-
-            // 在 fullMatch 中查找 web: { ... }
-            const webStart = fullMatch.indexOf('web:');
-            if (webStart === -1) {
-              console.error('未找到 web 属性');
-              process.exit(1);
-            }
-            let webObjStart = fullMatch.indexOf('{', webStart);
-            if (webObjStart === -1) {
-              console.error('未找到 web 对象起始');
-              process.exit(1);
-            }
-
-            // 计数定位 web 对象的结束
-            let webBraceCount = 0;
-            let webObjEnd = webObjStart;
-            for (let i = webObjStart; i < fullMatch.length; i++) {
-              if (fullMatch[i] === '{') webBraceCount++;
-              else if (fullMatch[i] === '}') {
-                webBraceCount--;
-                if (webBraceCount === 0) {
-                  webObjEnd = i;
-                  break;
-                }
-              }
-            }
-            if (webBraceCount !== 0) {
-              console.error('web 对象大括号不匹配');
-              process.exit(1);
-            }
-            const webObjStr = fullMatch.substring(webObjStart, webObjEnd + 1);
-
-            // 在 webObjStr 中查找 bundles 数组
-            const bundlesRegex = /bundles\\s*:\\s*\\[([^\\]]*)\\]/;
-            const bundlesMatch = webObjStr.match(bundlesRegex);
-            if (!bundlesMatch) {
-              console.error('未找到 web 中的 bundles 数组');
-              process.exit(1);
-            }
-
-            // 提取数组项并检查是否已包含 dshmarket
-            let items = bundlesMatch[1].split(',').map(s => s.trim()).filter(s => s.length > 0);
-            if (items.includes('\"dshmarket\"')) {
-              console.log('dshmarket 已在 web.bundles 中，跳过');
-            } else {
-              items.push('\"dshmarket\"');
-              const newArrayStr = '[' + items.join(', ') + ']';
-              // 替换 bundles 数组
-              const newWebObjStr = webObjStr.replace(bundlesRegex, 'bundles: ' + newArrayStr);
-              // 将新 web 对象替换回 fullMatch
-              const newFullMatch = fullMatch.substring(0, webObjStart) + newWebObjStr + fullMatch.substring(webObjEnd + 1);
-              // 写回文件
-              content = content.substring(0, start) + newFullMatch + content.substring(end + 1);
-              fs.writeFileSync(file, content);
-              console.log('已成功将 dshmarket 添加到 PROFILE_TEMPLATES.web.bundles');
-            }
-
-            // 输出附近片段以供检查
-            const snippet = content.substring(
-              Math.max(0, assignIndex - 20),
-              Math.min(content.length, assignIndex + 300)
-            );
-            console.log('--- 定义附近片段 ---');
-            console.log(snippet);
-          " "$FILE"
-
-      # ---------- 修补 dsh 附件存储的「祖先目录 fsync」（fnOS 上传失败） ----------
-      # 背景：@deepseek-ai/dsh-attachment-local 落盘附件时做崩溃可耐久发布，会对每一级
-      # 祖先目录 open(O_RDONLY) + fsync，并一路上溯到文件系统根 "/"。fnOS 把 /vol1 与
-      # /vol1/@appshare 设为 mode 000（仅由 trim_acl 授予穿越 x，不给读 r），应用以
-      # 自身 uid（无 CAP_DAC_OVERRIDE）无法读取这些祖先目录，首次上传即抛
-      # `EACCES: permission denied, open '/vol1/@appshare'`，WEB 端上传文件与图片整体
-      # 失败（会话/设置等其他落盘路径不上溯到根，故不受影响）。
-      # 修法：上溯时遇到打不开的祖先即停止（不可读的祖先本就无法 fsync），授权目录内
-      # 已创建的条目仍保持原有同步语义。仅改这一处，不动权限、不改存储位置。
-      - name: 修补 dsh 附件存储的祖先 fsync（fnOS /vol1 不可读）
-        run: |
-          cat > /tmp/patch-attachment-fsync.cjs <<'PATCH_EOF'
-          const fs = require('fs');
-          const path = process.argv[2];
-          const MARKER = 'dsh:fnos-ancestor-fsync';
-          const ANCHOR_RE = /([ \t]+let level = target;\r?\n[ \t]+while \(level !== stop\) \{\r?\n[ \t]+const parent = dirname\(level\);\r?\n)([ \t]+)(await syncDirectory\(parent\);)(\r?\n)/;
-
-          if (!fs.existsSync(path)) {
-            console.log(`::warning::未找到 ${path}，跳过附件 fsync 修补（请确认 dsh 包布局是否变化）`);
-            process.exit(0);
-          }
-          const src = fs.readFileSync(path, 'utf8');
-          if (src.includes(MARKER)) {
-            console.log('附件 fsync 补丁已存在，无需重复注入');
-            process.exit(0);
-          }
-          const m = src.match(ANCHOR_RE);
-          if (m) {
-            const ind = m[2];
-            const nl = m[4];
-            const replacement = m[1] +
-              ind + 'try {' + nl +
-              ind + '\t' + m[3] + nl +
-              ind + '} catch (error) {' + nl +
-              ind + '\t/* ' + MARKER + ' —— fnOS 把 /vol1 与 /vol1/@appshare 设为 mode 000，' + nl +
-              ind + '\t   仅由 trim_acl 授予穿越；非 root 无法 open(O_RDONLY) 祖先目录，' + nl +
-              ind + '\t   耐久性 fsync 因此抛 EACCES，使 WEB 端上传文件/图片整体失败。' + nl +
-              ind + '\t   不可读的祖先本就无法同步，故停止上溯；授权目录内已创建的' + nl +
-              ind + '\t   条目仍已同步。 */' + nl +
-              ind + '\tif (error && (error.code === "EACCES" || error.code === "EPERM")) return;' + nl +
-              ind + '\tthrow error;' + nl +
-              ind + '}' + nl;
-            fs.writeFileSync(path, src.replace(ANCHOR_RE, replacement));
-            if (!fs.readFileSync(path, 'utf8').includes(MARKER)) {
-              console.error(`补丁写入后校验失败: ${path}`);
-              process.exit(1);
-            }
-            console.log('已注入附件存储的祖先 fsync 修补（无法读取的祖先即停止上溯）');
-            process.exit(0);
-          }
-          if (src.includes('parse(home).root')) {
-            console.error(`锚点缺失，但仍存在「上溯到文件系统根」的耐久化逻辑: ${path}`);
-            console.error('请人工核对上游改动，更新本步骤的 ANCHOR_RE 与替换体后再发布。');
-            process.exit(1);
-          }
-          console.log('::warning::上游似已移除「上溯到 /」的耐久化逻辑，跳过本补丁（请人工确认上传可用）');
-          PATCH_EOF
-          node /tmp/patch-attachment-fsync.cjs \
-            "/var/apps/Harness/target/server/node_modules/@deepseek-ai/dsh-attachment-local/lib/index.js"
-
-      - name: 压缩 server 目录
-        run: |
-          tar cJf "$GITHUB_WORKSPACE/server-${{ matrix.platform }}.tar.xz" \
-            -C /var/apps/Harness/target server
-
-      - name: 上传 server.tar.gz 作为 Artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: server-${{ matrix.platform }}
-          path: server-${{ matrix.platform }}.tar.xz
-          if-no-files-found: error
-
-  # ========== 第三步：在宿主机（容器外）使用 fnpack 打包 ==========
-  package:
-    name: 打包 fpk
-    needs: [build-harness, build-in-container]
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            platform: x86
-          - os: ubuntu-24.04-arm
-            platform: arm
-    outputs:
-      app_name: ${{ steps.set_vars.outputs.app_name }}
-      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
-      changelog: ${{ steps.set_vars.outputs.changelog }}
-    steps:
-      - name: 设置项目变量（从 build-in-container 继承）
-        id: set_vars
-        run: |
-          echo "app_name=Harness" >> $GITHUB_OUTPUT
-          echo "manifest_version=${{ needs.build-in-container.outputs.manifest_version }}" >> $GITHUB_OUTPUT
-          echo "changelog=${{ needs.build-in-container.outputs.changelog }}" >> $GITHUB_OUTPUT
-
-      - name: 映射平台到架构
-        id: map_arch
-        run: |
-          if [ "${{ matrix.platform }}" = "x86" ]; then
-            echo "arch=amd64" >> $GITHUB_OUTPUT
-          else
-            echo "arch=arm64" >> $GITHUB_OUTPUT
-          fi
-
-      - name: 下载对应架构的 server.tar.xz
-        uses: actions/download-artifact@v7
-        with:
-          name: server-${{ matrix.platform }}
-          path: ./server_artifact
-
-      - name: 下载对应架构的 harness 二进制
-        uses: actions/download-artifact@v7
-        with:
-          name: harness-${{ steps.map_arch.outputs.arch }}
-          path: ./harness_artifact
-
-      - name: 检出 buildbot 仓库（包含 fnpack 模板）
+      - name: 检出 buildbot 仓库
         uses: actions/checkout@v7
         with:
           path: buildbot_repo
@@ -376,23 +106,21 @@ jobs:
       - name: 组装 app 目录
         run: |
           mkdir -p build_workspace/Harness/app/bin
-          # 复制 server.tar.xz
-          cp ./server_artifact/server-${{ matrix.platform }}.tar.xz build_workspace/Harness/app/server.tar.xz
-          # 复制并重命名 harness
-          cp ./harness_artifact/harness-${{ steps.map_arch.outputs.arch }} build_workspace/Harness/app/bin/harness
+          cp dsh-src/backend/harness build_workspace/Harness/app/bin/harness
           chmod +x build_workspace/Harness/app/bin/harness
+          echo "app 目录内容："
           ls -la build_workspace/Harness/app/
+          ls -la build_workspace/Harness/app/bin/
 
       - name: 修改 manifest 文件
         run: |
-          APP_NAME="Harness"
-          MANIFEST_PATH="build_workspace/$APP_NAME/manifest"
+          MANIFEST_PATH="build_workspace/Harness/manifest"
           if [ ! -f "$MANIFEST_PATH" ]; then
             echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
             exit 1
           fi
-          MANIFEST_VERSION="${{ needs.build-in-container.outputs.manifest_version }}"
-          CHANGELOG="${{ needs.build-in-container.outputs.changelog }}"
+          MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
+          CHANGELOG="${{ steps.set_vars.outputs.changelog }}"
           ESCAPED_CHANGELOG=$(printf '%s' "$CHANGELOG" | jq -sRr @json)
           sed -i "s/\${VERSION}/$MANIFEST_VERSION/g" "$MANIFEST_PATH"
           sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
@@ -409,7 +137,7 @@ jobs:
             echo "错误：未找到生成的 fpk 文件"
             exit 1
           fi
-          FINAL_NAME="Harness-${{ needs.build-in-container.outputs.manifest_version }}-${{ matrix.platform }}.fpk"
+          FINAL_NAME="Harness-${{ steps.set_vars.outputs.manifest_version }}-${{ matrix.platform }}.fpk"
           mv "$FPK_FILE" "$FINAL_NAME"
           echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
           echo "打包完成，生成文件：$FINAL_NAME"
@@ -422,15 +150,15 @@ jobs:
           path: build_workspace/*.fpk
           if-no-files-found: error
 
-  # ========== 第四步：发布到 Fndepot ==========
+  # ========== 发布到 Fndepot ==========
   publish:
     name: 发布到 Fndepot Release
-    needs: package
-    if: always() && needs.package.result == 'success' && github.event.inputs.publish == 'true'
+    needs: build
+    if: always() && needs.build.result == 'success' && github.event.inputs.publish == 'true'
     uses: ./.github/workflows/Publish.yaml
     with:
-      app_name: ${{ needs.package.outputs.app_name }}
-      manifest_version: ${{ needs.package.outputs.manifest_version }}
-      changelog: ${{ needs.package.outputs.changelog }}
+      app_name: ${{ needs.build.outputs.app_name }}
+      manifest_version: ${{ needs.build.outputs.manifest_version }}
+      changelog: ${{ needs.build.outputs.changelog }}
     secrets:
       BUILDBOT: ${{ secrets.BUILDBOT }}
