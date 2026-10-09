@@ -1,7 +1,7 @@
 #!/bin/bash
 cd ${TRIM_APPDEST}/server
-tar -xzf *.tar.gz
-rm -f *.tar.gz
+tar -xzf photoprism.tar.gz
+rm -f photoprism.tar.gz
 
 CONFIG_TARGET=${TRIM_DATA_SHARE_PATHS%%:*}/config/defaults.yml
 
