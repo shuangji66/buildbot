@@ -1,0 +1,21 @@
+[
+  {
+    "stepTitle": "欢迎使用",
+    "items": [
+      {
+        "type": "text",
+        "field": "ui_port",
+        "label": "webui端口",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "helpText": "先在webui修改端口，再修改此处",
+        "initValue": "8096"
+      }
+    ]
+  }
+]

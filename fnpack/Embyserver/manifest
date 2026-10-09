@@ -1,0 +1,16 @@
+appname=Embyserver
+version=${VERSION}
+display_name=Emby
+desc="""<p>🎞️Emby将您的个人视频、音乐、照片以及实时电视内容整合在一起。</p><p>⭐使用说明：添加媒体库需在应用设置添加相应目录的权限。</p>"""
+platform=${PLATFORM}
+source=thirdparty
+maintainer=Emby
+maintainer_url=https://github.com/MediaBrowser/Emby.Releases
+distributor=shuangji66
+distributor_url=https://github.com/shuangji66/FnDepot
+ctl_stop=true
+desktop_uidir=ui
+desktop_applaunchname=Embyserver.Application
+checkport=false
+disable_authorization_path=false
+changelog=${CHANGELOG}

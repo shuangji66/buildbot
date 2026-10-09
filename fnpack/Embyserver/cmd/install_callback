@@ -1,0 +1,19 @@
+#!/bin/bash
+NEW_APP_DIR="${TRIM_APPDEST}/emby-server"
+
+cd ${TRIM_APPDEST}/deb
+ar x emby.deb data.tar.xz
+tar -xf data.tar.xz
+cd ${TRIM_APPDEST}/deb/opt/emby-server/bin
+
+for f in emby-server emby-clinfo emby-ffdetect emby-ffmpeg emby-vainfo emby-vulkaninfo; do
+    [ -f "$f" ] || continue
+    if grep -q '^APP_DIR=' "$f" 2>/dev/null; then
+        sed -i "s|^APP_DIR=.*|APP_DIR=$NEW_APP_DIR|" "$f"
+    fi
+done
+
+mv ${TRIM_APPDEST}/deb/opt/emby-server ${TRIM_APPDEST}/emby-server
+rm -rf ${TRIM_APPDEST}/deb
+
+exit 0
