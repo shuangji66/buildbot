@@ -1,0 +1,46 @@
+{
+  "data-share": {
+    "shares": [
+      {
+        "name": "PhotoPrism",
+        "permission": {
+          "rw": [
+            "PhotoPrism"
+          ]
+        }
+      },
+      {
+        "name": "PhotoPrism/config",
+        "permission": {
+          "rw": [
+            "PhotoPrism"
+          ]
+        }
+      },
+      {
+        "name": "PhotoPrism/data",
+        "permission": {
+          "rw": [
+            "PhotoPrism"
+          ]
+        }
+      },
+      {
+        "name": "PhotoPrism/Pictures",
+        "permission": {
+          "rw": [
+            "PhotoPrism"
+          ]
+        }
+      },
+      {
+        "name": "PhotoPrism/导入目录",
+        "permission": {
+          "rw": [
+            "PhotoPrism"
+          ]
+        }
+      }
+    ]
+  }
+}

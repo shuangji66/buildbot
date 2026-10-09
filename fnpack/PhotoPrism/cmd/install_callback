@@ -1,0 +1,15 @@
+#!/bin/bash
+cd ${TRIM_APPDEST}/server
+tar -xzf *.tar.gz
+rm -f *.tar.gz
+
+CONFIG_TARGET=${TRIM_DATA_SHARE_PATHS%%:*}/config/defaults.yml
+
+if [ -f "$CONFIG_TARGET" ]; then
+    echo "defaults.yml文件已存在，跳过生成。"
+    exit 0
+else
+    cp ${TRIM_APPDEST}/template/defaults.yml ${TRIM_DATA_SHARE_PATHS%%:*}/config/
+fi
+                                           
+exit 0

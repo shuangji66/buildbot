@@ -1,0 +1,16 @@
+appname=PhotoPrism
+version=${VERSION}
+display_name=PhotoPrism
+desc="""<p>🖼️PhotoPrism是一款面向去中心化网络的人工智能支持的照片应用程序，内置tensorflow运行库。</p><p>使用说明：安装后可在"应用文件/PhotoPrism/导入目录"批量添加需要导入的图片并在webui进行导入操作。</p>"""
+platform=${PLATFORM}
+source=thirdparty
+maintainer=photoprism
+maintainer_url=https://github.com/photoprism/photoprism
+distributor=shuangji66
+distributor_url=https://github.com/shuangji66/FnDepot
+ctl_stop=true
+desktop_uidir=ui
+desktop_applaunchname=PhotoPrism.Application
+checkport=false
+disable_authorization_path=false
+changelog=${CHANGELOG}

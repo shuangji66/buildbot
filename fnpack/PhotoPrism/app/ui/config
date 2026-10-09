@@ -1,0 +1,20 @@
+{
+  ".url": {
+    "PhotoPrism.Application": {
+      "noDisplay": false,
+      "allUsers": false,
+      "fileTypes": [],
+      "control": {
+        "accessPerm": "editable"
+      },
+      "protocol": "http",
+      "gatewayPrefix": "",
+      "gatewaySocket": "",
+      "title": "PhotoPrism",
+      "icon": "images/icon_{0}.png",
+      "type": "url",
+      "port": "${ui_port}",
+      "url": ""
+    }
+  }
+}

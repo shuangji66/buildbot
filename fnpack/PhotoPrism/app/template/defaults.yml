@@ -1,0 +1,7 @@
+ConfigPath: "var/apps/PhotoPrism/shares/PhotoPrism/config"
+StoragePath: "var/apps/PhotoPrism/shares/data"
+OriginalsPath: "var/apps/PhotoPrism/shares/Pictures"
+ImportPath: "var/apps/PhotoPrism/shares/导入目录"
+DatabaseDriver: "sqlite"
+DetectNSFW: false
+UploadNSFW: true

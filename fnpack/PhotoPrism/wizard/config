@@ -1,0 +1,52 @@
+[
+  {
+    "stepTitle": "欢迎使用",
+    "items": [
+      {
+        "type": "text",
+        "field": "admin_username",
+        "label": "管理员用户名",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "initValue": ""
+      },
+      {
+        "type": "password",
+        "field": "admin_password",
+        "label": "管理员用户密码",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          },
+          {
+            "min": 8,
+            "max": 72,
+            "message": "密码长度8-72"
+          }
+        ],
+        "options": [],
+        "helpText": "",
+        "initValue": ""
+      },
+      {
+        "type": "text",
+        "field": "ui_port",
+        "label": "服务端口",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "initValue": "2342"
+      }
+    ]
+  }
+]
