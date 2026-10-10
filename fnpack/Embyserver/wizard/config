@@ -13,8 +13,34 @@
           }
         ],
         "options": [],
-        "helpText": "先在webui修改端口，再修改此处",
+        "helpText": "",
         "initValue": "8096"
+      },
+      {
+        "type": "select",
+        "field": "proxy_mode",
+        "label": "代理模式",
+        "rules": [],
+        "options": [
+          {
+            "label": "关闭",
+            "value": "0"
+          },
+          {
+            "label": "开启",
+            "value": "1"
+          }
+        ],
+        "helpText": "",
+        "initValue": "0"
+      },
+      {
+        "type": "text",
+        "field": "proxy_addr",
+        "label": "代理地址",
+        "rules": [],
+        "options": [],
+        "initValue": "http://127.0.0.1:7890"
       }
     ]
   }
