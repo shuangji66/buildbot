@@ -1,0 +1,14 @@
+#!/bin/bash
+
+if [ "$jf_mode" = "gateway" ]; then
+    sed -i 's#<BaseUrl>.*</BaseUrl>#<BaseUrl>/app/Jellyfin</BaseUrl>#' ${TRIM_PKGVAR}/config/network.xml
+else
+    sed -i 's#<BaseUrl>.*</BaseUrl>#<BaseUrl></BaseUrl>#' ${TRIM_PKGVAR}/config/network.xml
+fi
+
+sed -i \
+  -e "s#<InternalHttpPort>[^<]*</InternalHttpPort>#<InternalHttpPort>${jf_port}</InternalHttpPort>#" \
+  -e "s#<PublicHttpPort>[^<]*</PublicHttpPort>#<PublicHttpPort>${jf_port}</PublicHttpPort>#" \
+  "${TRIM_PKGVAR}/config/network.xml"
+
+exit 0

@@ -1,0 +1,42 @@
+#!/bin/bash
+cd ${TRIM_APPDEST}
+tar -xJf jellyfin.tar.xz
+rm -f jellyfin.tar.xz
+
+cd ${TRIM_APPDEST}/ffmpeg
+tar -xJf ffmpeg.tar.xz
+rm -f ffmpeg.tar.xz
+
+mkdir -p ${TRIM_PKGVAR}/data ${TRIM_PKGVAR}/config ${TRIM_PKGVAR}/cache ${TRIM_PKGVAR}/log ${TRIM_PKGVAR}/tmp
+if [ ! -e "${TRIM_PKGVAR}/data/plugins" ]; then
+    ln -s ${TRIM_DATA_SHARE_PATHS%%:*} ${TRIM_PKGVAR}/data/plugins
+fi
+jf_render_network_xml() {
+    local mode="$1" port="$2"
+    if [ "${jf_mode}" = "gateway" ]; then
+        base="/app/Jellyfin"
+    else
+        base=""
+    fi
+    cat >"${TRIM_PKGVAR}/config/network.xml" <<XML
+<?xml version="1.0" encoding="utf-8"?>
+<NetworkConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <BaseUrl>${base}</BaseUrl>
+  <EnableUPnP>false</EnableUPnP>
+  <InternalHttpPort>${port}</InternalHttpPort>
+  <PublicHttpPort>${port}</PublicHttpPort>
+  <InternalHttpsPort>8920</InternalHttpsPort>
+  <PublicHttpsPort>8920</PublicHttpsPort>
+  <EnableHttps>false</EnableHttps>
+  <EnableRemoteAccess>true</EnableRemoteAccess>
+  <RequireHttps>false</RequireHttps>
+</NetworkConfiguration>
+XML
+}
+
+if [ ! -f "${TRIM_PKGVAR}/config/network.xml" ]; then
+    jf_render_network_xml "${jf_mode}" "${jf_port}"
+fi
+
+
+exit 0

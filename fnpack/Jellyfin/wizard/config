@@ -1,0 +1,39 @@
+[
+  {
+    "stepTitle": "欢迎使用",
+    "items": [
+      {
+        "type": "select",
+        "field": "jf_mode",
+        "label": "模式",
+        "rules": [],
+        "options": [
+          {
+            "label": "网关模式",
+            "value": "gateway"
+          },
+          {
+            "label": "端口模式",
+            "value": "port"
+          }
+        ],
+        "helpText": "投屏、DLNA使用需使用端口模式，切换后需重新连接服务器，飞牛入口将失效",
+        "initValue": "gateway"
+      },
+      {
+        "type": "text",
+        "field": "jf_port",
+        "label": "端口",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "helpText": "",
+        "initValue": "8096"
+      }
+    ]
+  }
+]

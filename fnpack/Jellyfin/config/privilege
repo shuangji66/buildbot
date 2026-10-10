@@ -1,0 +1,9 @@
+{
+  "defaults": {
+    "run-as": "package"
+  },
+  "join-groups": [
+    "video",
+    "render"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  ".url": {
+    "Jellyfin.Application": {
+      "noDisplay": false,
+      "allUsers": false,
+      "fileTypes": [],
+      "control": {
+        "accessPerm": "editable"
+      },
+      "protocol": "",
+      "gatewayPrefix": "/app/Jellyfin",
+      "gatewaySocket": "app.sock",
+      "title": "Jellyfin",
+      "icon": "images/icon_{0}.png",
+      "type": "url",
+      "port": "",
+      "url": "/app/Jellyfin"
+    }
+  }
+}
