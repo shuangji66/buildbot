@@ -4,13 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Uptime Kuma 源码版本号（例如 2.5.4）'
+        description: 'Uptime Kuma 源码版本号（例如 2.5.6）'
         required: true
         type: string
       manifest_version:
-        description: 'manifest 中的版本号（例如 2.5.4）'
-        required: true
+        description: 'manifest 中的版本号（留空则与源码版本号一致）'
+        required: false
         type: string
+        default: ''
       changelog:
         description: 'manifest 中的更新日志（支持中文）'
         required: true
@@ -42,9 +43,13 @@ jobs:
           APP_NAME="uptime-kuma"
           VERSION_SOURCE="${{ github.event.inputs.version }}"
           MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          # 未填写 manifest_version 时，回退使用源码版本号
+          if [ -z "$MANIFEST_VERSION" ]; then
+            MANIFEST_VERSION="$VERSION_SOURCE"
+          fi
           CHANGELOG="${{ github.event.inputs.changelog }}"
-          if [ -z "$VERSION_SOURCE" ] || [ -z "$MANIFEST_VERSION" ]; then
-            echo "错误：版本号不能为空"
+          if [ -z "$VERSION_SOURCE" ]; then
+            echo "错误：源码版本号不能为空"
             exit 1
           fi
           echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
@@ -78,6 +83,7 @@ jobs:
           cd uptime-kuma
           npm ci --omit dev --no-audit
           npm run download-dist
+          tar -cJf node_modules.tar.xz node_modules
 
       - name: 检出本仓库 (shuangji66/buildbot)
         uses: actions/checkout@v7
@@ -101,13 +107,10 @@ jobs:
           mv uptime-kuma/db build_workspace/uptime-kuma/app/
           mv uptime-kuma/extra build_workspace/uptime-kuma/app/
           mv uptime-kuma/src build_workspace/uptime-kuma/app/
-          mv uptime-kuma/node_modules build_workspace/uptime-kuma/app/
+          mv uptime-kuma/node_modules.tar.xz build_workspace/uptime-kuma/app/
           mv uptime-kuma/server build_workspace/uptime-kuma/app/
           mv uptime-kuma/dist build_workspace/uptime-kuma/app/
           mv uptime-kuma/package*.json build_workspace/uptime-kuma/app/
-          cd build_workspace/uptime-kuma/app
-          tar -czf node_modules.tar.gz node_modules
-          rm -rf node_modules
 
       - name: 修改 manifest 文件（替换版本号和更新日志）
         run: |
@@ -147,9 +150,9 @@ jobs:
           path: build_workspace/*.fpk
           if-no-files-found: error
 
-  # ========== 发布到 Fndepot（调用通用多架构发布工作流） ==========
+  # ========== 发布到 Fndepot ==========
   publish:
-    name: 发布到 Fndepot Release（调用通用多架构发布工作流）
+    name: 发布到 Fndepot Release
     needs: build
     if: always() && needs.build.result == 'success' && github.event.inputs.publish == 'true'
     uses: ./.github/workflows/Publish.yaml
