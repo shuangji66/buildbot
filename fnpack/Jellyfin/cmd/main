@@ -16,8 +16,11 @@ export LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libjemalloc.so.2"
 LOG_FILE="${TRIM_PKGVAR}/info.log"
 PID_FILE="${TRIM_PKGVAR}/app.pid"
 
-# write the command to start your program here 
-CMD="${TRIM_APPDEST}/jellyfin/jellyfin --datadir ${TRIM_PKGVAR}/data --configdir ${TRIM_PKGVAR}/config --cachedir ${TRIM_PKGVAR}/cache --logdir ${TRIM_PKGVAR}/log --ffmpeg ${TRIM_APPDEST}/ffmpeg/ffmpeg"
+if [ "$jf_ffmpeg" = "0" ]; then
+    CMD="${TRIM_APPDEST}/jellyfin/jellyfin --datadir ${TRIM_PKGVAR}/data --configdir ${TRIM_PKGVAR}/config --cachedir ${TRIM_PKGVAR}/cache --logdir ${TRIM_PKGVAR}/log --ffmpeg ${TRIM_APPDEST}/ffmpeg/ffmpeg"
+elif [ "$jf_ffmpeg" = "1" ]; then
+    CMD="${TRIM_APPDEST}/jellyfin/jellyfin --datadir ${TRIM_PKGVAR}/data --configdir ${TRIM_PKGVAR}/config --cachedir ${TRIM_PKGVAR}/cache --logdir ${TRIM_PKGVAR}/log --ffmpeg /usr/bin/ffmpeg"
+fi
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
