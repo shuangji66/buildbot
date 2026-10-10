@@ -1,0 +1,54 @@
+[
+  {
+    "stepTitle": "欢迎使用",
+    "items": [
+      {
+        "type": "text",
+        "field": "port",
+        "label": "监听端口",
+        "rules": [
+          {
+            "required": true,
+            "message": "请输入内容"
+          }
+        ],
+        "options": [],
+        "initValue": "23800"
+      },
+      {
+        "type": "select",
+        "field": "auth_mode",
+        "label": "鉴权模式",
+        "rules": [],
+        "options": [
+          {
+            "label": "关闭",
+            "value": "0"
+          },
+          {
+            "label": "开启",
+            "value": "1"
+          }
+        ],
+        "helpText": "非必需，按需开启，开启后需在请求头添加\"Authorization: Basic <base64 user:password>\"，或curl -u user:password",
+        "initValue": "0"
+      },
+      {
+        "type": "text",
+        "field": "auth_user",
+        "label": "鉴权用户",
+        "rules": [],
+        "options": [],
+        "initValue": ""
+      },
+      {
+        "type": "password",
+        "field": "auth_pwd",
+        "label": "鉴权用户密钥",
+        "rules": [],
+        "options": [],
+        "initValue": ""
+      }
+    ]
+  }
+]
