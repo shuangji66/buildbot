@@ -32,6 +32,24 @@
         ],
         "options": [],
         "initValue": "8096"
+      },
+      {
+        "type": "select",
+        "field": "jf_ffmpeg",
+        "label": "ffmpeg调用",
+        "rules": [],
+        "options": [
+          {
+            "label": "jellyfin定制ffmpeg",
+            "value": "0"
+          },
+          {
+            "label": "飞牛系统ffmpeg",
+            "value": "1"
+          }
+        ],
+        "helpText": "jellyfin定制ffmpeg无法在飞牛系统正常硬件转码，可按需切换飞牛系统ffmpeg转码播放",
+        "initValue": "0"
       }
     ]
   }
