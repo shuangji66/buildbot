@@ -1,5 +1,13 @@
 #!/bin/bash
 export EMBY_DATA="${TRIM_PKGVAR}"
+if [ "$proxy_mode" = "1" ]; then
+    export http_proxy=$proxy_addr 
+    export https_proxy=$proxy_addr
+else
+    unset https_proxy
+    unset http_proxy
+fi
+
 LOG_FILE="${TRIM_PKGVAR}/info.log"
 PID_FILE="${TRIM_PKGVAR}/app.pid"
 
