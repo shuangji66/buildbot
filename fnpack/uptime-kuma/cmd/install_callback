@@ -1,12 +1,7 @@
 #!/bin/bash
 cd ${TRIM_APPDEST}
-if [ -f "node_modules.tar.gz" ];then
-    tar -xzf node_modules.tar.gz
-else
-    echo "未找到node_modules.tar.gz" > ${TRIM_TEMP_LOGFILE}
-    exit 1
-fi
-rm -f node_modules.tar.gz
+tar -xJf node_modules.tar.xz
+rm -f node_modules.tar.xz
 
 if [ -f "${TRIM_PKGETC}/kuma.db" ];then
     mv ${TRIM_PKGETC}/* ${TRIM_PKGVAR}
