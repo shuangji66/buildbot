@@ -1,7 +1,7 @@
 appname=Jellyfin
 version=${VERSION}
 display_name=Jellyfin
-desc="""<p>🎬Jellyfin是一套完全自由的媒体服务器，用于整理与串流你的电影、剧集、音乐、照片与直播电视。</p><p>⭐使用说明：推荐使用网关模式，如需投屏、DLNA可切换至端口模式。可在“应用文件/Jellyfin”目录下安装插件。</p>"""
+desc="""<p>🎬Jellyfin是一套完全自由的媒体服务器，用于整理与串流你的电影、剧集、音乐、照片与直播电视。</p><p>⭐使用说明：推荐使用网关模式，如需投屏、DLNA可切换至端口模式。添加媒体库需添加相应目录权限。可在“应用文件/Jellyfin”目录下安装插件。</p>"""
 platform=${PLATFORM}
 source=thirdparty
 maintainer=jellyfin
