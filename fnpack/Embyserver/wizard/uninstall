@@ -38,7 +38,7 @@
         "label": "示例项",
         "rules": [],
         "options": [],
-        "helpText": "<strong>警告：</strong> 选择删除数据后，所有应用数据将永久丢失，无法恢复，音乐目录不会删除。"
+        "helpText": "<strong>警告：</strong> 选择删除数据后，所有应用数据将永久丢失，无法恢复。"
       }
     ]
   }
