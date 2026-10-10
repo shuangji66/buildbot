@@ -16,4 +16,23 @@ done
 mv ${TRIM_APPDEST}/deb/opt/emby-server ${TRIM_APPDEST}/emby-server
 rm -rf ${TRIM_APPDEST}/deb
 
+render_system_xml() {
+    local port="$1"
+    cat >"${TRIM_PKGVAR}/config/system.xml" <<XML
+<?xml version="1.0"?>
+<ServerConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <EnableUPnP>true</EnableUPnP>
+  <PublicPort>${port}</PublicPort>
+  <PublicHttpsPort>8920</PublicHttpsPort>
+  <HttpServerPortNumber>${port}</HttpServerPortNumber>
+  <HttpsPortNumber>8920</HttpsPortNumber>
+</ServerConfiguration>
+XML
+}
+
+if [ ! -f "${TRIM_PKGVAR}/config/system.xml" ]; then
+    mkdir -p ${TRIM_PKGVAR}/config
+    render_system_xml "${ui_port}"
+fi
+
 exit 0
