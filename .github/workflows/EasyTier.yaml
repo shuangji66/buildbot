@@ -3,38 +3,25 @@ name: Build EasyTier and Release
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: '上游软件版本号（例如 2.6.0，不带 v）'
-        required: true
-        type: string
       manifest_version:
-        description: 'manifest 中的版本号（例如 2.6.0-1）'
+        description: 'manifest 中的版本号（例如 2.7.0-1）'
         required: true
         type: string
       changelog:
-        description: '更新日志（支持中文）'
-        required: true
+        description: '更新日志（支持中文，默认：更新主线版本）'
+        required: false
         type: string
+        default: '更新主线版本'
+      run_id:
+        description: '指定 EasyTier 构建的 run ID（留空则自动查找最新成功的运行）'
+        required: false
+        type: string
+        default: ''
       publish:
         description: '是否发布到 Fndepot Release'
         required: false
         type: boolean
         default: true
-      target_repo:
-        description: 'EasyTier 源码仓库（格式: owner/repo）'
-        required: false
-        type: string
-        default: 'EasyTier/EasyTier'
-      workflow_name:
-        description: '构建 workflow 文件名'
-        required: false
-        type: string
-        default: 'core.yml'
-      branch:
-        description: '分支名称'
-        required: false
-        type: string
-        default: 'main'
 
 jobs:
   build:
@@ -44,77 +31,84 @@ jobs:
           - os: ubuntu-24.04
             platform: x86
             artifact_name: easytier-linux-x86_64
-            download_arch: x86_64
           - os: ubuntu-24.04-arm
             platform: arm
             artifact_name: easytier-linux-aarch64
-            download_arch: aarch64
     runs-on: ${{ matrix.os }}
     outputs:
       app_name: ${{ steps.set_vars.outputs.app_name }}
       manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
-      upstream_version: ${{ steps.set_vars.outputs.upstream_version }}
       changelog: ${{ steps.set_vars.outputs.changelog }}
     steps:
       - name: 设置项目变量
         id: set_vars
         run: |
           APP_NAME="EasyTier"
-          VERSION="${{ github.event.inputs.version }}"
           MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
           CHANGELOG="${{ github.event.inputs.changelog }}"
           echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
-          echo "upstream_version=$VERSION" >> $GITHUB_OUTPUT
           echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
           echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
 
-      - name: 确定架构和平台标识
-        id: arch
-        run: |
-          echo "platform=${{ matrix.platform }}" >> $GITHUB_OUTPUT
-          echo "artifact_name=${{ matrix.artifact_name }}" >> $GITHUB_OUTPUT
-
-      - name: 从 EasyTier 仓库下载最新 artifact
+      - name: 从 EasyTier 仓库下载 artifact
         env:
           GH_TOKEN: ${{ secrets.BUILDBOT }}
-          TARGET_REPO: ${{ github.event.inputs.target_repo }}
-          WORKFLOW_NAME: ${{ github.event.inputs.workflow_name }}
-          BRANCH: ${{ github.event.inputs.branch }}
+          TARGET_REPO: 'EasyTier/EasyTier'
+          WORKFLOW_NAME: 'core.yml'
+          BRANCH: 'main'
           ARTIFACT_NAME: ${{ matrix.artifact_name }}
+          INPUT_RUN_ID: ${{ github.event.inputs.run_id }}
         run: |
           set -euo pipefail
           mkdir -p artifacts
 
-          echo "🔍 查找 workflow '$WORKFLOW_NAME' 分支 '$BRANCH' 的成功运行..."
-          runs_json=$(curl -s -H "Authorization: token $GH_TOKEN" \
-            "https://api.github.com/repos/$TARGET_REPO/actions/workflows/$WORKFLOW_NAME/runs?branch=$BRANCH&status=success&per_page=30")
-          run_ids=$(echo "$runs_json" | jq -r '.workflow_runs[].id')
+          FOUND_RUN_ID=""
 
-          if [ -z "$run_ids" ]; then
-            echo "❌ 未找到成功的 workflow 运行"
+          if [ -n "$INPUT_RUN_ID" ]; then
+            # 用户指定了 run_id，直接使用
+            echo "🎯 使用指定的 run ID: $INPUT_RUN_ID"
+            FOUND_RUN_ID="$INPUT_RUN_ID"
+            artifacts_json=$(curl -s -H "Authorization: token $GH_TOKEN" \
+              "https://api.github.com/repos/$TARGET_REPO/actions/runs/$FOUND_RUN_ID/artifacts")
+          else
+            # 自动查找最新成功的运行
+            echo "🔍 查找 workflow '$WORKFLOW_NAME' 分支 '$BRANCH' 的成功运行..."
+            runs_json=$(curl -s -H "Authorization: token $GH_TOKEN" \
+              "https://api.github.com/repos/$TARGET_REPO/actions/workflows/$WORKFLOW_NAME/runs?branch=$BRANCH&status=success&per_page=30")
+            run_ids=$(echo "$runs_json" | jq -r '.workflow_runs[].id')
+
+            if [ -z "$run_ids" ]; then
+              echo "❌ 未找到成功的 workflow 运行"
+              exit 1
+            fi
+
+            artifacts_json=""
+            for run_id in $run_ids; do
+              echo "检查运行 ID: $run_id ..."
+              artifacts_json=$(curl -s -H "Authorization: token $GH_TOKEN" \
+                "https://api.github.com/repos/$TARGET_REPO/actions/runs/$run_id/artifacts")
+              artifact_count=$(echo "$artifacts_json" | jq '.total_count')
+              if [ "$artifact_count" -eq 0 ]; then
+                continue
+              fi
+              matched=$(echo "$artifacts_json" | jq --arg name "$ARTIFACT_NAME" '.artifacts[] | select(.name == $name) | .name')
+              if [ -n "$matched" ]; then
+                FOUND_RUN_ID=$run_id
+                echo "🎯 找到匹配的 artifact 在运行 ID: $FOUND_RUN_ID"
+                break
+              fi
+            done
+          fi
+
+          if [ -z "$FOUND_RUN_ID" ]; then
+            echo "❌ 未找到匹配的 artifact"
             exit 1
           fi
 
-          found_run_id=""
-          artifacts_json=""
-          for run_id in $run_ids; do
-            echo "检查运行 ID: $run_id ..."
-            artifacts_json=$(curl -s -H "Authorization: token $GH_TOKEN" \
-              "https://api.github.com/repos/$TARGET_REPO/actions/runs/$run_id/artifacts")
-            artifact_count=$(echo "$artifacts_json" | jq '.total_count')
-            if [ "$artifact_count" -eq 0 ]; then
-              continue
-            fi
-            matched=$(echo "$artifacts_json" | jq --arg name "$ARTIFACT_NAME" '.artifacts[] | select(.name == $name) | .name')
-            if [ -n "$matched" ]; then
-              found_run_id=$run_id
-              echo "🎯 找到匹配的 artifact 在运行 ID: $found_run_id"
-              break
-            fi
-          done
-
-          if [ -z "$found_run_id" ]; then
-            echo "❌ 未找到名为 '$ARTIFACT_NAME' 的 artifact"
+          # 确认该 run 中存在所需 artifact
+          matched=$(echo "$artifacts_json" | jq --arg name "$ARTIFACT_NAME" '.artifacts[] | select(.name == $name) | .name')
+          if [ -z "$matched" ]; then
+            echo "❌ 运行 $FOUND_RUN_ID 中未找到名为 '$ARTIFACT_NAME' 的 artifact"
             exit 1
           fi
 
@@ -143,7 +137,6 @@ jobs:
           cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
           chmod +x build_workspace/fnpack
 
-      # ========== 项目特有的复制步骤 ==========
       - name: 提取并复制 easytier-core 和 easytier-web-embed 到 app/server
         run: |
           APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app"
@@ -152,7 +145,6 @@ jobs:
           find extracted -name "easytier-web-embed" -type f -executable -exec cp {} "$APP_DIR/server/" \;
           echo "复制完成，app/server 目录内容："
           ls -la "$APP_DIR/server"
-      # =====================================
 
       - name: 修改 manifest 文件
         run: |
@@ -186,16 +178,16 @@ jobs:
           echo "打包完成，生成文件：$FINAL_NAME"
           ls -la *.fpk
 
-      - name: 上传 fpk 文件作为 Artifact（供发布任务使用）
+      - name: 上传 fpk 文件作为 Artifact
         uses: actions/upload-artifact@v7
         with:
           name: fpk-${{ matrix.platform }}
           path: build_workspace/*.fpk
           if-no-files-found: error
 
-  # ========== 发布到 Fndepot（调用通用发布工作流） ==========
+  # ========== 发布到 Fndepot ==========
   publish:
-    name: 发布到 Fndepot Release（调用通用发布工作流）
+    name: 发布到 Fndepot Release
     needs: build
     if: always() && needs.build.result == 'success' && github.event.inputs.publish == 'true'
     uses: ./.github/workflows/Publish.yaml
