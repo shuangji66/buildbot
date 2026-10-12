@@ -1,0 +1,35 @@
+{
+  "data-share": {
+    "shares": [
+      {
+        "name": "fpkstudio",
+        "permission": {
+          "rw": [
+            "fpkstudio"
+          ]
+        }
+      },
+      {
+        "name": "fpkstudio/projects",
+        "permission": {
+          "rw": [
+            "fpkstudio"
+          ]
+        }
+      },
+      {
+        "name": "fpkstudio/output",
+        "permission": {
+          "rw": [
+            "fpkstudio"
+          ]
+        }
+      }
+    ]
+  },
+  "api-scope": [
+    "trim.file.userAccess",
+    "trim.file.userAcl",
+    "trim.file.path"
+  ]
+}

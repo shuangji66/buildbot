@@ -1,0 +1,20 @@
+{
+  ".url": {
+    "fpkstudio.Application": {
+      "noDisplay": false,
+      "allUsers": false,
+      "fileTypes": [],
+      "control": {
+        "accessPerm": "editable"
+      },
+      "protocol": "",
+      "gatewayPrefix": "/app/fpkstudio",
+      "gatewaySocket": "app.sock",
+      "title": "Fpk Studio",
+      "icon": "images/icon_{0}.png",
+      "type": "iframe",
+      "port": "",
+      "url": "/app/fpkstudio"
+    }
+  }
+}
