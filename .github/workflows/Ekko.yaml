@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       manifest_version:
-        description: 'manifest 中的版本号（例如 0.7.25）'
+        description: 'manifest 中的版本号（例如 0.7.35）'
         required: true
         type: string
       changelog:
@@ -17,15 +17,15 @@ on:
         type: boolean
         default: true
       ekko_version:
-        description: 'hermes-web-ui (Ekko) 的 npm 版本号（例如 0.7.25，或 latest）'
+        description: 'hermes-web-ui (Ekko) 的 npm 版本号（例如 0.7.35，或 latest）'
         required: false
         type: string
         default: 'latest'
       node_version:
-        description: 'Node.js 版本号（例如 24.21.0，不带 v）'
+        description: 'Node.js 版本号（例如 24.22.0，不带 v）'
         required: false
         type: string
-        default: '24.21.0'
+        default: '24.22.0'
       node_upgrade:
         description: '安装时是否更新 Node（0=不更新，1=更新）'
         required: false
