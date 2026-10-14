@@ -1,0 +1,44 @@
+name: Build code-server
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-in-container:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: x86
+          - os: ubuntu-24.04-arm
+            platform: arm
+    runs-on: ${{ matrix.os }}
+    container: debian:12
+    steps:
+      - name: 安装 Node.js 24 和基础工具
+        run: |
+          apt-get update
+          apt-get install -y curl git python3 build-essential xz-utils
+          curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+          apt-get install -y nodejs
+          node -v
+          npm -v
+
+      - name: 创建目标目录并全局安装 code-server
+        run: |
+          mkdir -p /var/apps/code-server/target/server
+          npm install -g code-server --prefix /var/apps/code-server/target/server
+
+      - name: 压缩 server 目录为 server.tar.xz
+        run: |
+          cd /var/apps/code-server/target
+          tar -cJf server.tar.xz server
+          ls -lh server.tar.xz
+
+      - name: 上传 server.tar.xz 作为 Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: server-${{ matrix.platform }}
+          path: /var/apps/code-server/target/server.tar.xz
+          if-no-files-found: error
