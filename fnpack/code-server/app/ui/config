@@ -1,0 +1,12 @@
+{
+  ".url": {
+    "code-server.Application": {
+      "allUsers": false,
+      "icon": "images/icon_{0}.png",
+      "port": "${port}",
+      "protocol": "",
+      "title": "Code Server",
+      "type": "iframe"
+    }
+  }
+}

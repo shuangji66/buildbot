@@ -1,0 +1,7 @@
+#!/bin/bash
+
+cd ${TRIM_APPDEST}
+tar -xJf server.tar.xz
+rm -f server.tar.xz
+
+exit 0

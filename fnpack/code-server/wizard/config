@@ -1,0 +1,42 @@
+[
+  {
+    "items": [
+      {
+        "field": "host",
+        "initValue": "0.0.0.0",
+        "label": "监听地址",
+        "rules": [
+          {
+            "message": "此项为必填项",
+            "required": true
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "field": "port",
+        "initValue": "6869",
+        "label": "监听端口",
+        "rules": [
+          {
+            "message": "此项为必填项",
+            "required": true
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "field": "user_pwd",
+        "label": "密码",
+        "rules": [
+          {
+            "message": "此项为必填项",
+            "required": true
+          }
+        ],
+        "type": "password"
+      }
+    ],
+    "stepTitle": "欢迎使用"
+  }
+]

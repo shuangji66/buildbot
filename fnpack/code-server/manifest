@@ -1,0 +1,17 @@
+appname=code-server
+version=${VERSION}
+display_name=CodeServer
+desc=<p>📋基于VSCode的一个现代化、轻量级的代码编辑器。</p><p>⭐使用说明：数据在“应用文件/code-server”。</p>
+platform=${PLATFORM}
+source=thirdparty
+maintainer=coder
+distributor=shuangji66
+desktop_uidir=ui
+desktop_applaunchname=code-server.Application
+ctl_stop=true
+checkport=false
+disable_authorization_path=false
+maintainer_url=https://github.com/coder/code-server
+distributor_url=https://github.com/shuangji66/FnDepot
+install_dep_apps=nodejs_v24
+changelog=${CHANGELOG}
