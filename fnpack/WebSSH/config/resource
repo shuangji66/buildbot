@@ -1,0 +1,14 @@
+{
+  "api-scope": [
+    "trim.file.userAccess",
+    "trim.file.userAcl",
+    "trim.file.path"
+  ],
+  "data-share": {
+    "shares": [
+      {
+        "name": "WebSSH"
+      }
+    ]
+  }
+}

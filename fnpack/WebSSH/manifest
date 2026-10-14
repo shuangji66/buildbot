@@ -1,0 +1,17 @@
+appname= WebSSH
+version=${VERSION}
+display_name= WebSSH
+desc= <p>🖥️标签化设计的WebSSH客户端，支持SFTP文件管理和面包屑导航，支持预览、编辑文件，内置常用快捷指令。</p>
+platform=${PLATFORM}
+source= thirdparty
+maintainer= shuangji66
+maintainer_url= https://github.com/shuangji66/FnDepot
+distributor= shuangji66
+distributor_url= https://github.com/shuangji66/FnDepot
+ctl_stop= true
+desktop_uidir= ui
+desktop_applaunchname= WebSSH.Application
+checkport= false
+disable_authorization_path= false
+micro_app = true
+changelog=${CHANGELOG}

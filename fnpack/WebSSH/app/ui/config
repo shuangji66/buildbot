@@ -1,0 +1,17 @@
+{
+  ".url": {
+    "WebSSH.Application": {
+      "allUsers": false,
+      "control": {
+        "accessPerm": "hidden"
+      },
+      "gatewayPrefix": "/app/WebSSH",
+      "gatewaySocket": "app.sock",
+      "icon": "images/icon_{0}.png",
+      "protocol": "",
+      "title": "WebSSH",
+      "type": "iframe",
+      "url": "/app/WebSSH"
+    }
+  }
+}
