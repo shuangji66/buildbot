@@ -1,0 +1,37 @@
+[
+  {
+    "items": [
+      {
+        "field": "mode",
+        "helpText": "端口访问时，飞牛入口失效，需手动添加端口地址",
+        "initValue": "0",
+        "label": "访问模式",
+        "options": [
+          {
+            "label": "网关访问（推荐）",
+            "value": "0"
+          },
+          {
+            "label": "端口访问",
+            "value": "1"
+          }
+        ],
+        "type": "select"
+      },
+      {
+        "field": "host",
+        "helpText": "端口访问建议反代+网页认证",
+        "initValue": "0.0.0.0",
+        "label": "监听地址",
+        "type": "text"
+      },
+      {
+        "field": "port",
+        "initValue": "6858",
+        "label": "监听端口",
+        "type": "text"
+      }
+    ],
+    "stepTitle": "欢迎使用"
+  }
+]

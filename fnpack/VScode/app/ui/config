@@ -1,0 +1,14 @@
+{
+  ".url": {
+    "VScode.Application": {
+      "allUsers": false,
+      "gatewayPrefix": "/app/VScode",
+      "gatewaySocket": "app.sock",
+      "icon": "images/icon_{0}.png",
+      "protocol": "",
+      "title": "VS code",
+      "type": "iframe",
+      "url": "/app/VScode"
+    }
+  }
+}

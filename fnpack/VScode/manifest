@@ -1,0 +1,17 @@
+appname=VScode
+version=${VERSION}
+display_name=VScode
+desc=<p>📋微软开发的一个现代化、轻量级的代码编辑器。</p><p>⭐使用说明：数据在“应用文件/VScode”。</p>
+platform=${PLATFORM}
+source=thirdparty
+maintainer=Microsoft
+distributor=shuangji66
+desktop_uidir=ui
+desktop_applaunchname=VScode.Application
+ctl_stop=true
+checkport=false
+disable_authorization_path=false
+maintainer_url=https://code.visualstudio.com/
+distributor_url=https://github.com/shuangji66/FnDepot
+install_dep_apps=nodejs_v24
+changelog=${CHANGELOG}
