@@ -1,10 +1,30 @@
-name: Build code-server
+name: Build code-server and Release
 
 on:
   workflow_dispatch:
+    inputs:
+      upstream_version:
+        description: 'code-server 上游版本号（例如 4.141.0）'
+        required: true
+        type: string
+      manifest_version:
+        description: 'manifest 中的版本号（留空则与上游版本号一致）'
+        required: false
+        type: string
+        default: ''
+      changelog:
+        description: '更新日志（支持中文，默认：更新上游版本）'
+        required: false
+        type: string
+        default: '更新上游版本'
+      publish:
+        description: '是否发布到 Fndepot Release'
+        required: false
+        type: boolean
+        default: true
 
 jobs:
-  build-in-container:
+  build:
     strategy:
       fail-fast: false
       matrix:
@@ -15,7 +35,29 @@ jobs:
             platform: arm
     runs-on: ${{ matrix.os }}
     container: debian:12
+    outputs:
+      app_name: ${{ steps.set_vars.outputs.app_name }}
+      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
+      changelog: ${{ steps.set_vars.outputs.changelog }}
     steps:
+      - name: 设置项目变量
+        id: set_vars
+        run: |
+          APP_NAME="code-server"
+          UPSTREAM_VERSION="${{ github.event.inputs.upstream_version }}"
+          MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          # 未填写 manifest_version 时，回退使用上游版本号
+          if [ -z "$MANIFEST_VERSION" ]; then
+            MANIFEST_VERSION="$UPSTREAM_VERSION"
+          fi
+          CHANGELOG="${{ github.event.inputs.changelog }}"
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "upstream_version=$UPSTREAM_VERSION" >> $GITHUB_OUTPUT
+          echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "上游版本: $UPSTREAM_VERSION"
+          echo "manifest 版本: $MANIFEST_VERSION"
+
       - name: 安装 Node.js 24 和基础工具
         run: |
           apt-get update
@@ -25,10 +67,12 @@ jobs:
           node -v
           npm -v
 
-      - name: 创建目标目录并全局安装 code-server
+      - name: 创建目标目录并全局安装 code-server@${{ steps.set_vars.outputs.upstream_version }}
         run: |
           mkdir -p /var/apps/code-server/target/server
-          npm install -g code-server --prefix /var/apps/code-server/target/server
+          npm install -g "code-server@${{ steps.set_vars.outputs.upstream_version }}" --prefix /var/apps/code-server/target/server
+          echo "安装完成，目录结构："
+          ls -la /var/apps/code-server/target/server/
 
       - name: 压缩 server 目录为 server.tar.xz
         run: |
@@ -36,9 +80,79 @@ jobs:
           tar -cJf server.tar.xz server
           ls -lh server.tar.xz
 
-      - name: 上传 server.tar.xz 作为 Artifact
+      - name: 检出 buildbot 仓库
+        uses: actions/checkout@v7
+        with:
+          path: buildbot_repo
+
+      - name: 准备 fnpack 工具和模板
+        run: |
+          mkdir -p build_workspace
+          cp -r "buildbot_repo/fnpack/${{ steps.set_vars.outputs.app_name }}" build_workspace/
+          if [ "${{ matrix.platform }}" = "x86" ]; then
+            FNPACK_BIN="fnpack-1.2.3-linux-amd64"
+          else
+            FNPACK_BIN="fnpack-1.2.3-linux-arm64"
+          fi
+          cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
+          chmod +x build_workspace/fnpack
+
+      - name: 复制 server.tar.xz 到 app 目录
+        run: |
+          APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app"
+          mkdir -p "$APP_DIR"
+          cp /var/apps/code-server/target/server.tar.xz "$APP_DIR/"
+          echo "复制完成，app 目录内容："
+          ls -la "$APP_DIR"
+
+      - name: 修改 manifest 文件
+        run: |
+          MANIFEST_PATH="build_workspace/${{ steps.set_vars.outputs.app_name }}/manifest"
+          if [ ! -f "$MANIFEST_PATH" ]; then
+            echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
+            exit 1
+          fi
+          MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
+          CHANGELOG="${{ steps.set_vars.outputs.changelog }}"
+          apt-get install -y jq
+          ESCAPED_CHANGELOG=$(printf '%s' "$CHANGELOG" | jq -sRr @json)
+          sed -i "s/\${VERSION}/$MANIFEST_VERSION/g" "$MANIFEST_PATH"
+          sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
+          sed -i "s/\${PLATFORM}/${{ matrix.platform }}/g" "$MANIFEST_PATH"
+          echo "manifest 修改后的内容："
+          cat "$MANIFEST_PATH"
+
+      - name: 执行 fnpack 打包
+        run: |
+          cd build_workspace
+          ./fnpack build "${{ steps.set_vars.outputs.app_name }}"
+          FPK_FILE=$(ls *.fpk | head -n 1)
+          if [ -z "$FPK_FILE" ]; then
+            echo "错误：未找到生成的 fpk 文件"
+            exit 1
+          fi
+          FINAL_NAME="${{ steps.set_vars.outputs.app_name }}-${{ steps.set_vars.outputs.manifest_version }}-${{ matrix.platform }}.fpk"
+          mv "$FPK_FILE" "$FINAL_NAME"
+          echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
+          echo "打包完成，生成文件：$FINAL_NAME"
+          ls -la *.fpk
+
+      - name: 上传 fpk 文件作为 Artifact
         uses: actions/upload-artifact@v7
         with:
-          name: server-${{ matrix.platform }}
-          path: /var/apps/code-server/target/server.tar.xz
+          name: fpk-${{ matrix.platform }}
+          path: build_workspace/*.fpk
           if-no-files-found: error
+
+  # ========== 发布到 Fndepot（调用通用发布工作流） ==========
+  publish:
+    name: 发布到 Fndepot Release
+    needs: build
+    if: always() && needs.build.result == 'success' && github.event.inputs.publish == 'true'
+    uses: ./.github/workflows/Publish.yaml
+    with:
+      app_name: ${{ needs.build.outputs.app_name }}
+      manifest_version: ${{ needs.build.outputs.manifest_version }}
+      changelog: ${{ needs.build.outputs.changelog }}
+    secrets:
+      BUILDBOT: ${{ secrets.BUILDBOT }}
