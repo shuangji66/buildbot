@@ -19,10 +19,13 @@ start_process() {
         return 0
     fi
    
-    rm ${TRIM_APPDEST}/app.sock
+    if [ -S "${TRIM_APPDEST}/app.sock" ]; then
+        rm -f "${TRIM_APPDEST}/app.sock"
+    fi
+
     log_msg "Starting process ..."
     # run cmd to start process
-    bash -c "${CMD}" >> ${LOG_FILE} 2>&1 &
+    bash -c "${CMD}" 2>&1 &
     # write pid to pidfile
     printf "%s" "$!" > ${PID_FILE}
     # log_msg "CMD = ${CMD}"
@@ -58,7 +61,7 @@ stop_process() {
             log_msg "send KILL signal to PID:${pid}..."
             kill -KILL "${pid}"
             sleep 1
-            rm -f "${PID_FILE}"
+            rm -f "${PID_FILE}" "${TRIM_APPDEST}/app.sock"
         else
             log_msg "process killed... "
         fi
