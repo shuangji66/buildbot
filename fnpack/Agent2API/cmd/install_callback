@@ -1,5 +1,7 @@
 #!/bin/bash
 
-### This script is called after the user installs the application.
+cd ${TRIM_APPDEST}/server
+tar -xzf agent2api.tar.gz
+rm -f agent2api.tar.gz
 
 exit 0
