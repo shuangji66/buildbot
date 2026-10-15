@@ -1,7 +1,7 @@
 appname=VScode
 version=${VERSION}
 display_name=VScode
-desc=<p>📋微软开发的一个现代化、轻量级的代码编辑器。</p><p>⭐使用说明：数据在“应用文件/VScode”。</p>
+desc=<p>📋微软开发的一个现代化、轻量级的代码编辑器。</p><p>⭐使用说明：已内置汉化处理，只能显示简中，未显示中文可清除浏览器缓存。数据在“应用文件/VScode”。</p>
 platform=${PLATFORM}
 source=thirdparty
 maintainer=Microsoft
