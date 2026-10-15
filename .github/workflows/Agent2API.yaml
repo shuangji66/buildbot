@@ -44,7 +44,7 @@ jobs:
       - name: 设置项目变量
         id: set_vars
         run: |
-          APP_NAME="Agent1API"
+          APP_NAME="Agent2API"
           UPSTREAM_VERSION="${{ github.event.inputs.upstream_version }}"
           MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
           # 未填写 manifest_version 时，回退使用上游版本号
