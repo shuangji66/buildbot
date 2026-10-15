@@ -2,10 +2,7 @@
   "data-share": {
     "shares": [
       {
-        "name": "VScode"
-      },
-      {
-        "name": "VScode/data"
+        "name": "code-server"
       }
     ]
   }
