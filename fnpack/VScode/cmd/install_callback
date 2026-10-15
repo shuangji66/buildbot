@@ -1,7 +1,186 @@
 #!/bin/bash
-
+export PATH=/var/apps/nodejs_v24/target/bin:$PATH
 cd ${TRIM_APPDEST}
 tar -xJf server.tar.xz
 rm -f server.tar.xz
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 核心语言包对齐成中文
+#
+# 为什么不能直接用 CDN 上那份 nls.messages.js：它是「另一个消息集」的扁平数组，
+# 而 VS Code 是按下标取词的（实测本机构建 22963 条 vs CDN 24941 条，31% 下标错位），
+# 直接用会得到「界面中文但命令面板全是乱串」。
+#
+# 翻译来源（优先级从高到低）：
+#   1) 在线：拉取最新「中文(简体)语言包」扩展，取它 key 化的 translations/main.i18n.json
+#   2) 离线：包内 app/zh-nls/zh-hans.i18n.json（官方 1.131 语言包 + 官方未覆盖的新文案自译）
+#   3) 回退英文
+# 再按包内自带的英文原版（nls.keys.json + nls.messages.json）逐条对齐 → 下标天然一致，
+# 写回 server/out/nls.messages.js（那个永远被注入的同源兜底包），并把 product.json 的
+# nlsCoreBaseUrl 置空，避免 CDN 那份错位包再被注入。
+#
+# 纯内网时第 1 步拿不到，全部走离线包。失败一律不影响安装，日志见 ${TRIM_PKGVAR}/zh-nls.log
+# ─────────────────────────────────────────────────────────────────────────────
+node - <<'ZH_NLS_JS'
+const fs = require('fs'), os = require('os'), path = require('path'), zlib = require('zlib');
+const { spawnSync } = require('child_process');
+
+const APP = process.env.TRIM_APPDEST;
+const SERVER = path.join(APP, 'server');
+const OFFLINE = path.join(APP, 'zh-nls', 'zh-hans.i18n.json');
+const LOCALE = 'zh-cn';
+const LOGF = process.env.TRIM_PKGVAR ? path.join(process.env.TRIM_PKGVAR, 'zh-nls.log') : '';
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'zh-nls-'));
+const PUB = 'MS-CEINTL', EXT = 'vscode-language-pack-zh-hans';
+const GALLERY = 'https://www.vscode-unpkg.net/_gallery/' + PUB + '/' + EXT + '/latest';
+const vsixUrl = (v) =>
+  'https://marketplace.visualstudio.com/_apis/public/gallery/publishers/' + PUB +
+  '/vsextensions/' + EXT + '/' + v + '/vspackage';
+
+const log = (...a) => {
+  const s = '[zh-nls] ' + a.join(' ');
+  console.log(s);
+  try { if (LOGF) fs.appendFileSync(LOGF, s + '\n'); } catch (_) {}
+};
+const sigOf = (s) => {
+  const m = String(s).match(/\{\d+\}/g);
+  return m ? [...new Set(m)].sort().join(',') : '';
+};
+
+function curl(url, dest) {
+  const r = spawnSync('curl',
+    ['-sSL', '--compressed', '--connect-timeout', '8', '--max-time', '180', '-o', dest, url],
+    { stdio: 'ignore' });
+  return r.status === 0 && fs.existsSync(dest) && fs.statSync(dest).size > 0;
+}
+
+/* 最小 zip 读取：VSIX 就是 zip，不需要 unzip/python */
+function unzip(buf, want) {
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 0xffff - 22); i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('不是合法的 zip');
+  const count = buf.readUInt16LE(eocd + 10);
+  let off = buf.readUInt32LE(eocd + 16);
+  for (let i = 0; i < count; i++) {
+    if (buf.readUInt32LE(off) !== 0x02014b50) break;
+    const method = buf.readUInt16LE(off + 10);
+    const compSize = buf.readUInt32LE(off + 20);
+    const nameLen = buf.readUInt16LE(off + 28);
+    const extraLen = buf.readUInt16LE(off + 30);
+    const commentLen = buf.readUInt16LE(off + 32);
+    const localOff = buf.readUInt32LE(off + 42);
+    const name = buf.slice(off + 46, off + 46 + nameLen).toString('utf8');
+    if (name === want) {
+      const nLen = buf.readUInt16LE(localOff + 26);
+      const eLen = buf.readUInt16LE(localOff + 28);
+      const start = localOff + 30 + nLen + eLen;
+      const data = buf.slice(start, start + compSize);
+      return method === 0 ? data : zlib.inflateRawSync(data);
+    }
+    off += 46 + nameLen + extraLen + commentLen;
+  }
+  throw new Error('zip 里没有 ' + want);
+}
+
+/* 1) 在线：最新语言包 */
+function fetchLatest() {
+  try {
+    const verFile = path.join(TMP, 'latest.json');
+    if (!curl(GALLERY, verFile)) return null;
+    const ver = JSON.parse(fs.readFileSync(verFile, 'utf8')).versions[0].version;
+    log('在线语言包版本 ' + ver + '，下载 VSIX ...');
+    const vsixFile = path.join(TMP, 'pack.vsix');
+    if (!curl(vsixUrl(ver), vsixFile)) return null;
+    const data = unzip(fs.readFileSync(vsixFile), 'extension/translations/main.i18n.json');
+    const doc = JSON.parse(data.toString('utf8'));
+    return { contents: doc.contents || {}, version: ver };
+  } catch (e) {
+    log('在线获取失败：' + e.message);
+    return null;
+  }
+}
+
+/* 2) 离线包 */
+function loadOffline() {
+  if (!fs.existsSync(OFFLINE)) return null;
+  try {
+    const doc = JSON.parse(fs.readFileSync(OFFLINE, 'utf8'));
+    log('离线包 ' + path.basename(OFFLINE) + '：' + ((doc._meta && doc._meta.extra_count) || '?') + ' 条自译补充');
+    return { contents: doc.contents || {} };
+  } catch (e) {
+    log('离线包解析失败：' + e.message);
+    return null;
+  }
+}
+
+function main() {
+  const productFile = path.join(SERVER, 'product.json');
+  const keysFile = path.join(SERVER, 'out', 'nls.keys.json');
+  const msgsFile = path.join(SERVER, 'out', 'nls.messages.json');
+  const bundleFile = path.join(SERVER, 'out', 'nls.messages.js');
+  for (const f of [productFile, keysFile, msgsFile, bundleFile]) {
+    if (!fs.existsSync(f)) return log('找不到 ' + f + '，跳过');
+  }
+
+  const online = fetchLatest();
+  const offline = loadOffline();
+  log('翻译来源：在线 ' + (online ? '有（' + online.version + '）' : '无') + '，离线 ' + (offline ? '有' : '无'));
+  if (!online && !offline) return log('没有可用翻译，保持英文');
+
+  // 3) 对齐：在线优先 → 离线补充 → 回退英文
+  const keys = JSON.parse(fs.readFileSync(keysFile, 'utf8'));
+  const msgs = JSON.parse(fs.readFileSync(msgsFile, 'utf8'));
+  const pick = (src, mod, key) => (src && src[mod] && src[mod][key]) || '';
+  const out = new Array(msgs.length);
+  let o = 0, nOnline = 0, nOffline = 0, nMiss = 0;
+  for (const [mod, klist] of keys) {
+    for (const k of klist || []) {
+      if (o >= out.length) break;
+      let v = pick(online && online.contents, mod, k);
+      if (v) nOnline++;
+      else {
+        v = pick(offline && offline.contents, mod, k);
+        if (v) nOffline++;
+        else { v = msgs[o]; nMiss++; }
+      }
+      out[o] = v;
+      o++;
+    }
+  }
+  for (let i = o; i < out.length; i++) { out[i] = msgs[i]; nMiss++; }
+
+  const cover = ((out.length - nMiss) / out.length) * 100;
+  log('对齐：' + out.length + '/' + msgs.length + ' 条，覆盖 ' + cover.toFixed(2) +
+      '%（在线 ' + nOnline + '，离线补充 ' + nOffline + '，回退英文 ' + nMiss + '）');
+  let bad = 0;
+  for (let i = 0; i < msgs.length; i++) if (sigOf(msgs[i]) !== sigOf(out[i])) bad++;
+  if (out.length !== msgs.length || bad > msgs.length * 0.01) {
+    return log('对齐不合格（条数或占位符），保持英文');
+  }
+
+  const version = JSON.parse(fs.readFileSync(productFile, 'utf8')).version || '';
+  const js = '/* zh-nls 安装时生成 locale=' + LOCALE + ' 构建=' + version + ' */\n' +
+             'globalThis._VSCODE_NLS_MESSAGES=' + JSON.stringify(out) + ';\n' +
+             'globalThis._VSCODE_NLS_LANGUAGE=' + JSON.stringify(LOCALE) + ';\n';
+  const bak = bundleFile + '.orig-en';
+  if (!fs.existsSync(bak)) fs.copyFileSync(bundleFile, bak);
+  fs.writeFileSync(bundleFile, js);
+  log('已写回 ' + bundleFile + '（' + Buffer.byteLength(js) + ' bytes）');
+
+  const src = fs.readFileSync(productFile, 'utf8');
+  const next = src.replace(/"nlsCoreBaseUrl"\s*:\s*"[^"]*"/, '"nlsCoreBaseUrl":""');
+  if (next !== src) {
+    JSON.parse(next);
+    fs.writeFileSync(productFile, next);
+    log('product.json：nlsCoreBaseUrl 已置空');
+  }
+  log('完成，装完即为中文');
+}
+
+try { main(); } catch (e) { log('出错但忽略（不影响安装）：' + (e && e.message)); }
+try { fs.rmSync(TMP, { recursive: true, force: true }); } catch (_) {}
+ZH_NLS_JS
 
 exit 0
