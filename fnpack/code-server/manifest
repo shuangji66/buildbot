@@ -1,7 +1,7 @@
 appname=code-server
 version=${VERSION}
 display_name=CodeServer
-desc=<p>📋基于VSCode的一个现代化、轻量级的代码编辑器。</p><p>⭐使用说明：数据在“应用文件/code-server”。</p>
+desc=<p>📋基于VSCode的一个现代化、轻量级的代码编辑器。</p><p>⭐使用说明：内置终端无法以默认的nologin方式进入，需在命令面板将终端配置改为bash。数据在“应用文件/code-server”。</p>
 platform=${PLATFORM}
 source=thirdparty
 maintainer=coder
