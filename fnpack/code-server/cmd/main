@@ -54,7 +54,7 @@ stop_process() {
             log_msg "send KILL signal to PID:${pid}..."
             kill -KILL "${pid}"
             sleep 1
-            rm -f "${PID_FILE}" "${TRIM_APPDEST}/app.sock"
+            rm -f "${PID_FILE}"
         else
             log_msg "process killed... "
         fi
