@@ -1,4 +1,4 @@
-name: Build Agent1API and Release
+name: Build Agent2API and Release
 
 on:
   workflow_dispatch:
