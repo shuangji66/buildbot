@@ -2,13 +2,13 @@
 export AGENT2API_HOST="0.0.0.0"
 export AGENT2API_PROXY_PORT="$port"
 export AGENT2API_PROXY_HOME="${TRIM_PKGVAR}"
-export AGENT2API_UI_DIR="${TRIM_APPDEST}/www"
+export AGENT2API_UI_DIR="${TRIM_APPDEST}/server/ui"
 export AGENT2API_CAPTCHA_ENABLED=0
 LOG_FILE="${TRIM_PKGVAR}/info.log"
 PID_FILE="${TRIM_PKGVAR}/app.pid"
 
 # write the command to start your program here 
-CMD="${TRIM_APPDEST}/bin/agent2api"
+CMD="${TRIM_APPDEST}/server/agent2api-server"
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
