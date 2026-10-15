@@ -1,21 +1,22 @@
-name: Build Agent2API and Release
+name: Build Agent1API and Release
 
 on:
   workflow_dispatch:
     inputs:
-      image_version:
-        description: '上游镜像版本号（例如 2.8.0，不带 latest）'
+      upstream_version:
+        description: '上游版本号（例如 3.0.5，不带 v）'
         required: true
         type: string
       manifest_version:
-        description: 'manifest 中的版本号（留空则与上游镜像版本号一致）'
+        description: 'manifest 中的版本号（留空则与上游版本号一致）'
         required: false
         type: string
         default: ''
       changelog:
-        description: '更新日志（支持中文）'
-        required: true
+        description: '更新日志（支持中文，默认：更新上游版本）'
+        required: false
         type: string
+        default: '更新上游版本'
       publish:
         description: '是否发布到 Fndepot Release'
         required: false
@@ -30,8 +31,10 @@ jobs:
         include:
           - os: ubuntu-24.04
             platform: x86
+            asset_arch: amd64
           - os: ubuntu-24.04-arm
             platform: arm
+            asset_arch: arm64
     runs-on: ${{ matrix.os }}
     outputs:
       app_name: ${{ steps.set_vars.outputs.app_name }}
@@ -41,37 +44,31 @@ jobs:
       - name: 设置项目变量
         id: set_vars
         run: |
-          APP_NAME="Agent2API"
-          IMAGE_VERSION="${{ github.event.inputs.image_version }}"
+          APP_NAME="Agent1API"
+          UPSTREAM_VERSION="${{ github.event.inputs.upstream_version }}"
           MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
-          # 未填写 manifest_version 时，回退使用上游镜像版本号
+          # 未填写 manifest_version 时，回退使用上游版本号
           if [ -z "$MANIFEST_VERSION" ]; then
-            MANIFEST_VERSION="$IMAGE_VERSION"
+            MANIFEST_VERSION="$UPSTREAM_VERSION"
           fi
           CHANGELOG="${{ github.event.inputs.changelog }}"
           echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
-          echo "image_version=$IMAGE_VERSION" >> $GITHUB_OUTPUT
+          echo "upstream_version=$UPSTREAM_VERSION" >> $GITHUB_OUTPUT
           echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
           echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "上游镜像版本: $IMAGE_VERSION"
+          echo "上游版本: $UPSTREAM_VERSION"
           echo "manifest 版本: $MANIFEST_VERSION"
 
-      - name: 拉取镜像并提取文件
+      - name: 下载 agent2api-server 预编译包（${{ matrix.platform }}）
         run: |
-          IMAGE_TAG="${{ steps.set_vars.outputs.image_version }}"
-          IMAGE="aimodcc/agent2api:${IMAGE_TAG}"
-          echo "拉取镜像: $IMAGE"
-          docker pull "$IMAGE"
-          CONTAINER_ID=$(docker create "$IMAGE")
-          mkdir -p dist/bin dist/ui
-          docker cp "$CONTAINER_ID":/usr/local/bin/agent2api-server dist/bin/
-          docker cp "$CONTAINER_ID":/app/ui/. dist/ui/
-          docker rm "$CONTAINER_ID"
-          echo "提取完成："
-          ls -la dist/bin/
-          echo "ui 目录内容："
-          ls -la dist/ui/
-          file dist/bin/agent2api-server
+          VERSION="${{ steps.set_vars.outputs.upstream_version }}"
+          ASSET_ARCH="${{ matrix.asset_arch }}"
+          DOWNLOAD_URL="https://github.com/aimod-cc/agent2api/releases/download/v${VERSION}/agent2api-server-linux-${ASSET_ARCH}.tar.gz"
+          echo "下载地址: $DOWNLOAD_URL"
+          curl -fL "$DOWNLOAD_URL" -o agent2api.tar.gz
+          echo "下载完成："
+          ls -lh agent2api.tar.gz
+          file agent2api.tar.gz
 
       - name: 检出 buildbot 仓库
         uses: actions/checkout@v7
@@ -90,21 +87,12 @@ jobs:
           cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
           chmod +x build_workspace/fnpack
 
-      - name: 复制二进制到 app/bin（重命名为 agent2api）
+      - name: 复制 agent2api.tar.gz 到 app/server 目录
         run: |
-          APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app/bin"
+          APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app/server"
           mkdir -p "$APP_DIR"
-          cp dist/bin/agent2api-server "$APP_DIR/agent2api"
-          chmod +x "$APP_DIR/agent2api"
-          echo "复制完成，app/bin 目录内容："
-          ls -la "$APP_DIR"
-
-      - name: 复制 ui 目录到 app/www
-        run: |
-          APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app/www"
-          mkdir -p "$APP_DIR"
-          cp -a dist/ui/. "$APP_DIR/"
-          echo "复制完成，app/www 目录内容："
+          cp agent2api.tar.gz "$APP_DIR/"
+          echo "复制完成，app/server 目录内容："
           ls -la "$APP_DIR"
 
       - name: 修改 manifest 文件
