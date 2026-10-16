@@ -4,13 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       harness_version:
-        description: 'Harness 二进制版本号（例如 1.4.0）'
+        description: 'Harness 二进制版本号（例如 1.5.0）'
         required: true
         type: string
       manifest_version:
-        description: 'manifest 中的版本号（例如 1.1.0）'
-        required: true
+        description: 'manifest 中的版本号（留空则与注入版本号一致）'
+        required: false
         type: string
+        default: ''
       changelog:
         description: '更新日志（支持中文）'
         required: true
@@ -42,11 +43,19 @@ jobs:
         id: set_vars
         run: |
           APP_NAME="Harness"
+          HARNESS_VERSION="${{ github.event.inputs.harness_version }}"
           MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          # 未填写 manifest_version 时，回退使用注入版本号
+          if [ -z "$MANIFEST_VERSION" ]; then
+            MANIFEST_VERSION="$HARNESS_VERSION"
+          fi
           CHANGELOG="${{ github.event.inputs.changelog }}"
           echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "harness_version=$HARNESS_VERSION" >> $GITHUB_OUTPUT
           echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
           echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "注入版本: $HARNESS_VERSION"
+          echo "manifest 版本: $MANIFEST_VERSION"
 
       - name: 安装 Node.js 24
         uses: actions/setup-node@v7
@@ -78,7 +87,7 @@ jobs:
       - name: 构建 harness 二进制（原生，注入版本号）
         working-directory: ./dsh-src/backend
         env:
-          HARNESS_VERSION: ${{ github.event.inputs.harness_version }}
+          HARNESS_VERSION: ${{ steps.set_vars.outputs.harness_version }}
         run: |
           CGO_ENABLED=0 go build -trimpath \
             -ldflags="-s -w -X main.harnessVersion=$HARNESS_VERSION" \
