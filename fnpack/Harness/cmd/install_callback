@@ -1,8 +1,5 @@
 #!/bin/bash
 export PATH=/var/apps/nodejs_v24/target/bin:$PATH
-cd ${TRIM_APPDEST}
-tar -xJf server.tar.xz
-rm -f server.tar.xz
 mkdir -p ${TRIM_PKGVAR}/pnpm
 mkdir -p ${TRIM_PKGVAR}/backup
 if [ ! -f "${TRIM_PKGVAR}/pnpm/pnpm" ]; then
