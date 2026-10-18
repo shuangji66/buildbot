@@ -4,75 +4,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  noop:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-
     steps:
-      - name: Checkout ZCode repository
-        uses: actions/checkout@v4
-        with:
-          repository: zai-org/ZCode
+      - name: Say something
+        run: echo "垃圾智谱，不想开源就别装样子，写的什么垃圾"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.33.2
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24.14.0
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # 修复 root tsconfig 的子路径通配符
-      - name: Patch root tsconfig paths for Vite
-        run: |
-          if [ -f "tsconfig.base.json" ]; then
-            jq '.compilerOptions.paths["@zcode/shared/*"] = ["packages/shared/src/*"]' tsconfig.base.json > tsconfig.base.json.tmp
-            mv tsconfig.base.json.tmp tsconfig.base.json
-            echo "✅ Patched tsconfig.base.json"
-          fi
-
-      # 修复 e2e-report 的 baseUrl 与 TS6.0 废弃警告
-      - name: Patch e2e-report tsconfig
-        run: |
-          TARGET="packages/e2e-report/tsconfig.json"
-          if [ -f "$TARGET" ]; then
-            jq '.compilerOptions.baseUrl = "." | .compilerOptions.ignoreDeprecations = "6.0"' "$TARGET" > "$TARGET.tmp"
-            mv "$TARGET.tmp" "$TARGET"
-            echo "✅ Patched $TARGET with baseUrl and ignoreDeprecations"
-          fi
-
-      - name: Build Monorepo
-        run: pnpm build
-
-      - name: Build ZCode Distribution
-        run: pnpm build:zcode
-        env:
-          ZCODE_DIST_BASE_URL: "https://abc.com/zcode/"
-
-      - name: Verify releases directory
-        run: |
-          if [ ! -d "dist/zcode/releases" ]; then
-            echo "错误：dist/zcode/releases 目录不存在"
-            ls -la dist/ 2>/dev/null || true
-            exit 1
-          fi
-          echo "releases 目录内容："
-          ls -la dist/zcode/releases/
-
-      - name: Package releases as tar.gz
-        run: |
-          cd dist/zcode
-          tar -czf /tmp/zcode-releases.tar.gz releases/
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: zcode-releases
-          path: /tmp/zcode-releases.tar.gz
-          retention-days: 7
