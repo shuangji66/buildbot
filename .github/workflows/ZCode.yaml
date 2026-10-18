@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      # 拉取 ZCode 源码，而不是当前仓库
+      # 拉取 ZCode 源码
       - name: Checkout ZCode repository
         uses: actions/checkout@v6
         with:
@@ -24,13 +24,20 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 24.14.0
-          cache: pnpm   # 现在有 pnpm-lock.yaml 了，开启缓存加速依赖安装
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build ZCode
-        run: pnpm build:zcode --base-url https://abc.com/zcode/
+      # 【关键修复】必须先全量编译源码
+      - name: Build Monorepo
+        run: pnpm build
+
+      # 打包 ZCode 发行版（建议用环境变量传入地址）
+      - name: Build ZCode Distribution
+        run: pnpm build:zcode
+        env:
+          ZCODE_DIST_BASE_URL: "https://abc.com/zcode/"
 
       - name: Verify releases directory
         run: |
