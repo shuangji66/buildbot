@@ -30,7 +30,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build ZCode
-        run: pnpm build:zcode
+        run: pnpm build:zcode --base-url https://abc.com/zcode/
 
       - name: Verify releases directory
         run: |
