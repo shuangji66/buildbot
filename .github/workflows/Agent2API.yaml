@@ -63,7 +63,7 @@ jobs:
         run: |
           VERSION="${{ steps.set_vars.outputs.upstream_version }}"
           ASSET_ARCH="${{ matrix.asset_arch }}"
-          DOWNLOAD_URL="https://github.com/aimod-cc/agent2api/releases/download/v${VERSION}/agent2api-server-linux-${ASSET_ARCH}.tar.gz"
+          DOWNLOAD_URL="https://github.com/Agent2API/agent2api/releases/download/v${VERSION}/agent2api-server-linux-${ASSET_ARCH}.tar.gz"
           echo "下载地址: $DOWNLOAD_URL"
           curl -fL "$DOWNLOAD_URL" -o agent2api.tar.gz
           echo "下载完成："
