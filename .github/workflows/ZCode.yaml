@@ -9,8 +9,11 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - name: Checkout repository
+      # 拉取 ZCode 源码，而不是当前仓库
+      - name: Checkout ZCode repository
         uses: actions/checkout@v6
+        with:
+          repository: zai-org/ZCode
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -21,6 +24,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 24.14.0
+          cache: pnpm   # 现在有 pnpm-lock.yaml 了，开启缓存加速依赖安装
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
