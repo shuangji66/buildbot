@@ -1,0 +1,52 @@
+name: Build ZCode Releases
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 10.33.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build ZCode
+        run: pnpm build:zcode
+
+      - name: Verify releases directory
+        run: |
+          if [ ! -d "dist/zcode/releases" ]; then
+            echo "错误：dist/zcode/releases 目录不存在，构建可能失败"
+            ls -la dist/ 2>/dev/null || true
+            exit 1
+          fi
+          echo "releases 目录内容："
+          ls -la dist/zcode/releases/
+
+      - name: Package releases as tar.gz
+        run: |
+          cd dist/zcode
+          tar -czf /tmp/zcode-releases.tar.gz releases/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: zcode-releases
+          path: /tmp/zcode-releases.tar.gz
+          retention-days: 7
