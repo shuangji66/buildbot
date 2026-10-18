@@ -9,19 +9,18 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      # 拉取 ZCode 源码
       - name: Checkout ZCode repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           repository: zai-org/ZCode
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v6
+        uses: pnpm/action-setup@v4
         with:
           version: 10.33.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: 24.14.0
           cache: pnpm
@@ -29,11 +28,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # 【关键修复】必须先全量编译源码
+      - name: Patch TSConfig paths for Vite resolution
+        run: |
+          if [ -f "tsconfig.base.json" ]; then
+            jq '.compilerOptions.paths["@zcode/shared/*"] = ["packages/shared/src/*"]' tsconfig.base.json > tsconfig.base.json.tmp
+            mv tsconfig.base.json.tmp tsconfig.base.json
+            echo "✅ Patched tsconfig.base.json"
+          else
+            echo "⚠️ tsconfig.base.json not found, skipping patch."
+          fi
+
       - name: Build Monorepo
         run: pnpm build
 
-      # 打包 ZCode 发行版（建议用环境变量传入地址）
       - name: Build ZCode Distribution
         run: pnpm build:zcode
         env:
@@ -55,7 +62,7 @@ jobs:
           tar -czf /tmp/zcode-releases.tar.gz releases/
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: zcode-releases
           path: /tmp/zcode-releases.tar.gz
