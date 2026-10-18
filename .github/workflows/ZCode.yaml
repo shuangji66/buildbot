@@ -28,7 +28,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # 修复 tsconfig.base.json 的子路径通配符
+      # 修复 root tsconfig 的子路径通配符
       - name: Patch root tsconfig paths for Vite
         run: |
           if [ -f "tsconfig.base.json" ]; then
@@ -37,16 +37,14 @@ jobs:
             echo "✅ Patched tsconfig.base.json"
           fi
 
-      # 【新增】修复 e2e-report 的 baseUrl 问题 (TS5090)
-      - name: Patch e2e-report tsconfig (TS5090)
+      # 修复 e2e-report 的 baseUrl 与 TS6.0 废弃警告
+      - name: Patch e2e-report tsconfig
         run: |
           TARGET="packages/e2e-report/tsconfig.json"
           if [ -f "$TARGET" ]; then
-            jq '.compilerOptions.baseUrl = "."' "$TARGET" > "$TARGET.tmp"
+            jq '.compilerOptions.baseUrl = "." | .compilerOptions.ignoreDeprecations = "6.0"' "$TARGET" > "$TARGET.tmp"
             mv "$TARGET.tmp" "$TARGET"
-            echo "✅ Patched $TARGET with baseUrl: '.'"
-          else
-            echo "⚠️ $TARGET not found, skipping."
+            echo "✅ Patched $TARGET with baseUrl and ignoreDeprecations"
           fi
 
       - name: Build Monorepo
