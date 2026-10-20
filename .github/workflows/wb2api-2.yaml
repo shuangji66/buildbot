@@ -12,6 +12,7 @@ on:
         description: '更新日志（支持中文）'
         required: true
         type: string
+        default: '切换misakano7545来源临时更新'
       publish:
         description: '是否发布到 Fndepot Release'
         required: false
