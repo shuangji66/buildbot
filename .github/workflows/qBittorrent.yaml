@@ -1,0 +1,248 @@
+name: Build qBittorrent and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'qBittorrent 上游版本号（例如 5.3.0，不带 v）'
+        required: true
+        type: string
+      manifest_version:
+        description: 'manifest 中的版本号（留空则与上游版本号一致）'
+        required: false
+        type: string
+        default: ''
+      webui_version:
+        description: 'VueTorrent 版本号（例如 2.36.1，不带 v；留空则使用 latest）'
+        required: false
+        type: string
+        default: ''
+      changelog:
+        description: '更新日志（支持中文，默认：更新上游版本）'
+        required: false
+        type: string
+        default: '更新上游版本'
+      publish:
+        description: '是否发布到 Fndepot Release'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            platform: x86
+            asset_arch: x86_64
+          - os: ubuntu-24.04-arm
+            platform: arm
+            asset_arch: aarch64
+    runs-on: ${{ matrix.os }}
+    outputs:
+      app_name: ${{ steps.set_vars.outputs.app_name }}
+      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
+      changelog: ${{ steps.set_vars.outputs.changelog }}
+    steps:
+      - name: 设置项目变量
+        id: set_vars
+        run: |
+          APP_NAME="qBittorrent"
+          VERSION="${{ github.event.inputs.version }}"
+          MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          if [ -z "$MANIFEST_VERSION" ]; then
+            MANIFEST_VERSION="$VERSION"
+          fi
+          CHANGELOG="${{ github.event.inputs.changelog }}"
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "upstream_version=$VERSION" >> $GITHUB_OUTPUT
+          echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "qBittorrent 上游版本: $VERSION"
+          echo "manifest 版本: $MANIFEST_VERSION"
+
+      - name: 获取 libtorrent v2 和 v1 对应的 release 标签
+        id: tags
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          QB_VERSION: ${{ steps.set_vars.outputs.upstream_version }}
+        run: |
+          echo "获取 userdocs/qbittorrent-nox-static 的 release 列表..."
+          RELEASES_JSON=$(curl -fsSL \
+            -H "Authorization: token $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/userdocs/qbittorrent-nox-static/releases?per_page=100")
+
+          TAG_V2=$(echo "$RELEASES_JSON" | jq -r --arg ver "$QB_VERSION" \
+            '[.[] | select(.tag_name | startswith("release-\($ver)_v2.")) | .tag_name] | first // empty')
+          TAG_V1=$(echo "$RELEASES_JSON" | jq -r --arg ver "$QB_VERSION" \
+            '[.[] | select(.tag_name | startswith("release-\($ver)_v1.")) | .tag_name] | first // empty')
+
+          if [ -z "$TAG_V2" ] || [ -z "$TAG_V1" ]; then
+            echo "错误：未找到 qBittorrent ${QB_VERSION} 对应的 libtorrent v2/v1 release 标签"
+            echo "v2 tag: ${TAG_V2:-未找到}"
+            echo "v1 tag: ${TAG_V1:-未找到}"
+            exit 1
+          fi
+
+          echo "libtorrent v2 标签: $TAG_V2"
+          echo "libtorrent v1 标签: $TAG_V1"
+          echo "tag_v2=$TAG_V2" >> $GITHUB_OUTPUT
+          echo "tag_v1=$TAG_V1" >> $GITHUB_OUTPUT
+
+      - name: 确定 VueTorrent 版本并下载
+        id: vuetorrent
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WEBUI_VERSION: ${{ github.event.inputs.webui_version }}
+        run: |
+          if [ -n "$WEBUI_VERSION" ]; then
+            TAG="v${WEBUI_VERSION}"
+            echo "使用指定的 VueTorrent 版本: $TAG"
+          else
+            TAG=$(curl -fsSL \
+              -H "Authorization: token $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/VueTorrent/VueTorrent/releases/latest" | jq -r '.tag_name')
+            if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+              echo "错误：无法获取 VueTorrent latest 版本"
+              exit 1
+            fi
+            echo "自动获取 VueTorrent latest 版本: $TAG"
+          fi
+
+          DOWNLOAD_URL="https://github.com/VueTorrent/VueTorrent/releases/download/${TAG}/vuetorrent.zip"
+          echo "下载地址: $DOWNLOAD_URL"
+          curl -fL "$DOWNLOAD_URL" -o vuetorrent.zip
+          echo "下载完成："
+          ls -lh vuetorrent.zip
+          file vuetorrent.zip
+
+          mkdir -p vuetorrent-extract
+          unzip -o vuetorrent.zip -d vuetorrent-extract
+          echo "解压完成，目录结构："
+          find vuetorrent-extract -maxdepth 2 -type d
+
+          # 定位 vuetorrent 目录
+          VUETORRENT_DIR=$(find vuetorrent-extract -maxdepth 1 -type d -name "vuetorrent" | head -1)
+          if [ -z "$VUETORRENT_DIR" ]; then
+            # 兼容压缩包内可能多一层目录的情况
+            VUETORRENT_DIR=$(find vuetorrent-extract -type d -name "vuetorrent" | head -1)
+          fi
+          if [ -z "$VUETORRENT_DIR" ]; then
+            echo "错误：未在解压目录中找到 vuetorrent 目录"
+            exit 1
+          fi
+          echo "vuetorrent 目录: $VUETORRENT_DIR"
+          echo "VUETORRENT_DIR=$VUETORRENT_DIR" >> $GITHUB_ENV
+
+      - name: 下载 qBittorrent 二进制（${{ matrix.platform }}，libtorrent v2 + v1）
+        run: |
+          ASSET_ARCH="${{ matrix.asset_arch }}"
+          TAG_V2="${{ steps.tags.outputs.tag_v2 }}"
+          TAG_V1="${{ steps.tags.outputs.tag_v1 }}"
+
+          echo "下载 libtorrent v2 二进制: $TAG_V2"
+          URL_V2="https://github.com/userdocs/qbittorrent-nox-static/releases/download/${TAG_V2}/${ASSET_ARCH}-qbittorrent-nox"
+          curl -fL "$URL_V2" -o qbittorrent-v2
+          chmod +x qbittorrent-v2
+          echo "libtorrent v2 二进制:"
+          ls -lh qbittorrent-v2
+          file qbittorrent-v2
+
+          echo "下载 libtorrent v1 二进制: $TAG_V1"
+          URL_V1="https://github.com/userdocs/qbittorrent-nox-static/releases/download/${TAG_V1}/${ASSET_ARCH}-qbittorrent-nox"
+          curl -fL "$URL_V1" -o qbittorrent-v1
+          chmod +x qbittorrent-v1
+          echo "libtorrent v1 二进制:"
+          ls -lh qbittorrent-v1
+          file qbittorrent-v1
+
+      - name: 检出 buildbot 仓库
+        uses: actions/checkout@v7
+        with:
+          path: buildbot_repo
+
+      - name: 准备 fnpack 工具和模板
+        run: |
+          mkdir -p build_workspace
+          cp -r "buildbot_repo/fnpack/${{ steps.set_vars.outputs.app_name }}" build_workspace/
+          if [ "${{ matrix.platform }}" = "x86" ]; then
+            FNPACK_BIN="fnpack-1.2.3-linux-amd64"
+          else
+            FNPACK_BIN="fnpack-1.2.3-linux-arm64"
+          fi
+          cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
+          chmod +x build_workspace/fnpack
+
+      - name: 复制 qBittorrent 二进制到 app/bin
+        run: |
+          APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app/bin"
+          mkdir -p "$APP_DIR"
+          cp qbittorrent-v2 "$APP_DIR/qbittorrent-v2"
+          cp qbittorrent-v1 "$APP_DIR/qbittorrent-v1"
+          chmod +x "$APP_DIR/qbittorrent-v2" "$APP_DIR/qbittorrent-v1"
+          echo "复制完成，app/bin 目录内容："
+          ls -lh "$APP_DIR"
+
+      - name: 复制 VueTorrent 到 app/www
+        run: |
+          APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app/www"
+          mkdir -p "$APP_DIR"
+          cp -a "$VUETORRENT_DIR/." "$APP_DIR/"
+          echo "复制完成，app/www 目录内容："
+          ls -la "$APP_DIR" | head -20
+
+      - name: 修改 manifest 文件
+        run: |
+          MANIFEST_PATH="build_workspace/${{ steps.set_vars.outputs.app_name }}/manifest"
+          if [ ! -f "$MANIFEST_PATH" ]; then
+            echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
+            exit 1
+          fi
+          MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
+          CHANGELOG="${{ steps.set_vars.outputs.changelog }}"
+          sudo apt-get update && sudo apt-get install -y jq
+          ESCAPED_CHANGELOG=$(printf '%s' "$CHANGELOG" | jq -sRr @json)
+          sed -i "s/\${VERSION}/$MANIFEST_VERSION/g" "$MANIFEST_PATH"
+          sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
+          sed -i "s/\${PLATFORM}/${{ matrix.platform }}/g" "$MANIFEST_PATH"
+          echo "manifest 修改后的内容："
+          cat "$MANIFEST_PATH"
+
+      - name: 执行 fnpack 打包
+        run: |
+          cd build_workspace
+          ./fnpack build "${{ steps.set_vars.outputs.app_name }}"
+          FPK_FILE=$(ls *.fpk | head -n 1)
+          if [ -z "$FPK_FILE" ]; then
+            echo "错误：未找到生成的 fpk 文件"
+            exit 1
+          fi
+          FINAL_NAME="${{ steps.set_vars.outputs.app_name }}-${{ steps.set_vars.outputs.manifest_version }}-${{ matrix.platform }}.fpk"
+          mv "$FPK_FILE" "$FINAL_NAME"
+          echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
+          echo "打包完成，生成文件：$FINAL_NAME"
+          ls -lh *.fpk
+
+      - name: 上传 fpk 文件作为 Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: fpk-${{ matrix.platform }}
+          path: build_workspace/*.fpk
+          if-no-files-found: error
+
+  # ========== 发布到 Fndepot ==========
+  publish:
+    name: 发布到 Fndepot Release
+    needs: build
+    if: always() && needs.build.result == 'success' && github.event.inputs.publish == 'true'
+    uses: ./.github/workflows/Publish.yaml
+    with:
+      app_name: ${{ needs.build.outputs.app_name }}
+      manifest_version: ${{ needs.build.outputs.manifest_version }}
+      changelog: ${{ needs.build.outputs.changelog }}
+    secrets:
+      BUILDBOT: ${{ secrets.BUILDBOT }}
