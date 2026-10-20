@@ -1,0 +1,5 @@
+#!/bin/bash
+mv ${TRIM_APPDEST}/conf/* ${TRIM_DATA_SHARE_PATHS%%:*}/qBittorrent_conf/
+rm -rf ${TRIM_APPDEST}/conf
+
+exit 0

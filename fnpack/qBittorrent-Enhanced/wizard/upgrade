@@ -1,0 +1,19 @@
+[
+  {
+    "items": [
+      {
+        "field": "port",
+        "initValue": "8895",
+        "label": "端口",
+        "rules": [
+          {
+            "message": "请输入内容",
+            "required": true
+          }
+        ],
+        "type": "text"
+      }
+    ],
+    "stepTitle": "欢迎使用"
+  }
+]

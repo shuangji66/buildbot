@@ -1,0 +1,24 @@
+[
+  {
+    "items": [
+      {
+        "helpText": "默认用户名admin，初次启动会生成临时密钥在“应用目录/qBittorrent-Enhanced/info.log”，登录后立即修改用户名和密码",
+        "label": "示例项",
+        "type": "tips"
+      },
+      {
+        "field": "port",
+        "initValue": "8895",
+        "label": "端口",
+        "rules": [
+          {
+            "message": "请输入内容",
+            "required": true
+          }
+        ],
+        "type": "text"
+      }
+    ],
+    "stepTitle": "欢迎使用"
+  }
+]

@@ -1,0 +1,12 @@
+{
+  ".url": {
+    "qBittorrent-Enhanced.Application": {
+      "allUsers": false,
+      "icon": "images/icon_{0}.png",
+      "port": "${port}",
+      "protocol": "http",
+      "title": "qBittorrent-Enhanced",
+      "type": "url"
+    }
+  }
+}
