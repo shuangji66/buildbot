@@ -1,0 +1,9 @@
+#!/bin/bash
+
+CONF="${TRIM_DATA_SHARE_PATHS%%:*}/qBittorrent_conf/config/qBittorrent.conf"
+
+NEW_PORT="$port"
+
+sed -i -E "s#^(WebUI\\\\Port=).*#\1${NEW_PORT}#" "$CONF"
+
+exit 0

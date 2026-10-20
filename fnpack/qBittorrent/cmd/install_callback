@@ -1,0 +1,7 @@
+#!/bin/bash
+if [ ! -d "${TRIM_DATA_SHARE_PATHS%%:*}/qBittorrent_conf/config" ]; then
+    mv ${TRIM_APPDEST}/conf/* ${TRIM_DATA_SHARE_PATHS%%:*}/qBittorrent_conf/
+fi
+rm -rf ${TRIM_APPDEST}/conf
+
+exit 0

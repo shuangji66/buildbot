@@ -1,0 +1,30 @@
+{
+  "data-share": {
+    "shares": [
+      {
+        "name": "qBittorrent",
+        "permission": {
+          "rw": [
+            "qBittorrent"
+          ]
+        }
+      },
+      {
+        "name": "qBittorrent/qBittorrent_conf",
+        "permission": {
+          "rw": [
+            "qBittorrent"
+          ]
+        }
+      },
+      {
+        "name": "qBittorrent/Downloads",
+        "permission": {
+          "rw": [
+            "qBittorrent"
+          ]
+        }
+      }
+    ]
+  }
+}

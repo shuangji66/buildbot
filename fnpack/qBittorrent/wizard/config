@@ -1,0 +1,36 @@
+[
+  {
+    "items": [
+      {
+        "field": "port",
+        "initValue": "8995",
+        "label": "端口",
+        "rules": [
+          {
+            "message": "请输入内容",
+            "required": true
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "field": "lib_ver",
+        "helpText": "默认libtorrent2.0版本，如遇奇怪的下载、做种问题，可尝试切换libtorrent1.2版本",
+        "initValue": "2",
+        "label": "libtorrent版本",
+        "options": [
+          {
+            "label": "v1.2",
+            "value": "1"
+          },
+          {
+            "label": "v2.0",
+            "value": "2"
+          }
+        ],
+        "type": "select"
+      }
+    ],
+    "stepTitle": "欢迎使用"
+  }
+]
