@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       manifest_version:
-        description: 'manifest 中的版本号（例如 5.2.4.10）'
+        description: 'manifest 中的版本号（例如 5.2.4）'
         required: true
         type: string
       webui_version:
