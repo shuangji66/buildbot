@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       manifest_version:
-        description: 'manifest 中的版本号（例如 0.7.35）'
+        description: 'manifest 中的版本号（例如 0.7.38）'
         required: true
         type: string
       changelog:
@@ -17,20 +17,20 @@ on:
         type: boolean
         default: true
       hermes_agent_version:
-        description: 'hermes-agent 的 npm 版本号（例如 0.22.0，或 latest）'
+        description: 'hermes-agent 的 npm 版本号（例如 0.22.2，或 latest）'
         required: false
         type: string
         default: 'latest'
       hermes_web_ui_version:
-        description: 'hermes-web-ui 的 npm 版本号（例如 0.7.35，或 latest）'
+        description: 'hermes-web-ui 的 npm 版本号（例如 0.7.38，或 latest）'
         required: false
         type: string
         default: 'latest'
       node_version:
-        description: 'Node.js 版本号（例如 24.22.0，不带 v）'
+        description: 'Node.js 版本号（例如 24.22.1，不带 v）'
         required: false
         type: string
-        default: '24.22.0'
+        default: '24.22.1'
       node_upgrade:
         description: '安装时是否更新 Node（0=不更新，1=更新）'
         required: false
