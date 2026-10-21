@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       harness_version:
-        description: 'Harness 二进制版本号（例如 1.5.0）'
+        description: 'Harness 二进制版本号（例如 1.6.1）'
         required: true
         type: string
       manifest_version:
@@ -62,10 +62,10 @@ jobs:
         with:
           node-version: '24'
 
-      - name: 安装 Go 1.27
+      - name: 安装 Go 1.27.3
         uses: actions/setup-go@v7
         with:
-          go-version: '1.27'
+          go-version: '1.27.3'
 
       - name: 检出 shuangji66/dsh 仓库
         uses: actions/checkout@v7
