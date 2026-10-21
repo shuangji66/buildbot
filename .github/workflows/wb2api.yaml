@@ -4,10 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       manifest_version:
-        description: 'manifest 中的版本号（留空则与上游最新版本一致）'
-        required: false
+        description: 'manifest 中的版本号（必填，例如 26.10.21）'
+        required: true
         type: string
-        default: '26.10.21'
       changelog:
         description: '更新日志（支持中文）'
         required: true
@@ -45,6 +44,7 @@ jobs:
           echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
           echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
           echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "发布版本: $MANIFEST_VERSION"
 
       - name: 获取上游 latest 版本号
         id: upstream
@@ -63,16 +63,6 @@ jobs:
           UPSTREAM_VERSION=$(echo "$LATEST_TAG" | sed 's/^v//')
           echo "upstream_version=$UPSTREAM_VERSION" >> $GITHUB_OUTPUT
           echo "上游最新版本: $UPSTREAM_VERSION"
-
-      - name: 回退 manifest_version
-        id: fallback
-        run: |
-          MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
-          if [ -z "$MANIFEST_VERSION" ]; then
-            MANIFEST_VERSION="${{ steps.upstream.outputs.upstream_version }}"
-          fi
-          echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
-          echo "最终 manifest 版本: $MANIFEST_VERSION"
 
       - name: 下载并解压 wb2api-panel（${{ matrix.platform }}）
         run: |
@@ -147,7 +137,7 @@ jobs:
             echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
             exit 1
           fi
-          MANIFEST_VERSION="${{ steps.fallback.outputs.manifest_version }}"
+          MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
           CHANGELOG="${{ steps.set_vars.outputs.changelog }}"
           sudo apt-get update && sudo apt-get install -y jq
           ESCAPED_CHANGELOG=$(printf '%s' "$CHANGELOG" | jq -sRr @json)
@@ -166,7 +156,7 @@ jobs:
             echo "错误：未找到生成的 fpk 文件"
             exit 1
           fi
-          FINAL_NAME="${{ steps.set_vars.outputs.app_name }}-${{ steps.fallback.outputs.manifest_version }}-${{ matrix.platform }}.fpk"
+          FINAL_NAME="${{ steps.set_vars.outputs.app_name }}-${{ steps.set_vars.outputs.manifest_version }}-${{ matrix.platform }}.fpk"
           mv "$FPK_FILE" "$FINAL_NAME"
           echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
           echo "打包完成，生成文件：$FINAL_NAME"
