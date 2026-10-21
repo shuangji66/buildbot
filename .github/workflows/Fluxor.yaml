@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       manifest_version:
-        description: 'manifest 中的版本号（例如 2.5.2）'
+        description: 'manifest 中的版本号（例如 2.6.1）'
         required: true
         type: string
       version:
-        description: '注入二进制的版本号（例如 1.7.1）'
+        description: '注入二进制的版本号（例如 2.0.3）'
         required: true
         type: string
       changelog:
