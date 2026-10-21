@@ -10,7 +10,7 @@
       "protocol": "http",
       "gatewayPrefix": "",
       "gatewaySocket": "",
-      "title": "workbuddy2api",
+      "title": "wb2api",
       "icon": "images/icon_{0}.png",
       "type": "url",
       "port": "${port}",
