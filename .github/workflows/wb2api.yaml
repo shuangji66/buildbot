@@ -1,21 +1,18 @@
-name: Build wb2api and Release
+name: Build wb2api-2 and Release
 
 on:
   workflow_dispatch:
     inputs:
-      version:
-        description: '上游版本号（例如 1.11.7，不带 v）'
-        required: true
-        type: string
       manifest_version:
-        description: 'manifest 中的版本号（留空则与上游版本号一致）'
+        description: 'manifest 中的版本号（留空则与上游最新版本一致）'
         required: false
         type: string
-        default: ''
+        default: '26.10.21'
       changelog:
         description: '更新日志（支持中文）'
         required: true
         type: string
+        default: '更新上游版本'
       publish:
         description: '是否发布到 Fndepot Release'
         required: false
@@ -43,29 +40,49 @@ jobs:
         id: set_vars
         run: |
           APP_NAME="wb2api"
-          VERSION="${{ github.event.inputs.version }}"
           MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
-          # 未填写 manifest_version 时，回退使用上游版本号
-          if [ -z "$MANIFEST_VERSION" ]; then
-            MANIFEST_VERSION="$VERSION"
-          fi
           CHANGELOG="${{ github.event.inputs.changelog }}"
           echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
-          echo "upstream_version=$VERSION" >> $GITHUB_OUTPUT
           echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
           echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
-          echo "上游版本: $VERSION"
-          echo "manifest 版本: $MANIFEST_VERSION"
+
+      - name: 获取上游 latest 版本号
+        id: upstream
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST_TAG=$(curl -fsSL \
+            -H "Authorization: token $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/misakano7545/workbuddy2api-panel/releases/latest | jq -r '.tag_name')
+          if [ -z "$LATEST_TAG" ] || [ "$LATEST_TAG" = "null" ]; then
+            echo "错误：无法获取上游 latest 版本"
+            exit 1
+          fi
+          # 去掉前缀 v，例如 v2026.10.20.1041 → 2026.10.20.1041
+          UPSTREAM_VERSION=$(echo "$LATEST_TAG" | sed 's/^v//')
+          echo "upstream_version=$UPSTREAM_VERSION" >> $GITHUB_OUTPUT
+          echo "上游最新版本: $UPSTREAM_VERSION"
+
+      - name: 回退 manifest_version
+        id: fallback
+        run: |
+          MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
+          if [ -z "$MANIFEST_VERSION" ]; then
+            MANIFEST_VERSION="${{ steps.upstream.outputs.upstream_version }}"
+          fi
+          echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
+          echo "最终 manifest 版本: $MANIFEST_VERSION"
 
       - name: 下载并解压 wb2api-panel（${{ matrix.platform }}）
         run: |
-          VERSION="${{ steps.set_vars.outputs.upstream_version }}"
+          VERSION="${{ steps.upstream.outputs.upstream_version }}"
           ASSET_ARCH="${{ matrix.asset_arch }}"
-          DOWNLOAD_URL="https://github.com/linguo2625469/workbuddy2api-panel/releases/download/v${VERSION}/wb2api-panel-v${VERSION}-linux-${ASSET_ARCH}.tar.gz"
+          DOWNLOAD_URL="https://github.com/misakano7545/workbuddy2api-panel/releases/download/v${VERSION}/wb2api-panel-${VERSION}-linux-${ASSET_ARCH}.zip"
           echo "下载地址: $DOWNLOAD_URL"
-          curl -fL "$DOWNLOAD_URL" -o wb2api.tar.gz
+          curl -fL "$DOWNLOAD_URL" -o wb2api.zip
           mkdir -p wb2api-extract
-          tar -xzf wb2api.tar.gz -C wb2api-extract
+          unzip -o wb2api.zip -d wb2api-extract
           echo "解压完成，目录结构："
           find wb2api-extract -maxdepth 3 -type f | head -30
 
@@ -86,7 +103,6 @@ jobs:
           fi
           echo "config.example.json: $CONFIG_FILE"
 
-          # 保存路径供后续步骤使用
           echo "WB2API_BIN=$WB2API_BIN" >> $GITHUB_ENV
           echo "CONFIG_FILE=$CONFIG_FILE" >> $GITHUB_ENV
 
@@ -131,7 +147,7 @@ jobs:
             echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
             exit 1
           fi
-          MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
+          MANIFEST_VERSION="${{ steps.fallback.outputs.manifest_version }}"
           CHANGELOG="${{ steps.set_vars.outputs.changelog }}"
           sudo apt-get update && sudo apt-get install -y jq
           ESCAPED_CHANGELOG=$(printf '%s' "$CHANGELOG" | jq -sRr @json)
@@ -150,7 +166,7 @@ jobs:
             echo "错误：未找到生成的 fpk 文件"
             exit 1
           fi
-          FINAL_NAME="${{ steps.set_vars.outputs.app_name }}-${{ steps.set_vars.outputs.manifest_version }}-${{ matrix.platform }}.fpk"
+          FINAL_NAME="${{ steps.set_vars.outputs.app_name }}-${{ steps.fallback.outputs.manifest_version }}-${{ matrix.platform }}.fpk"
           mv "$FPK_FILE" "$FINAL_NAME"
           echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
           echo "打包完成，生成文件：$FINAL_NAME"
