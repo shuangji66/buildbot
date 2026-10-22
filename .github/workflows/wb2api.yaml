@@ -1,4 +1,4 @@
-name: Build wb2api-2 and Release
+name: Build wb2api and Release
 
 on:
   workflow_dispatch:
