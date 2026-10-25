@@ -1,0 +1,65 @@
+name: build redis
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare target dir
+        run: mkdir -p dist
+
+      - name: Build & install in Debian 12 (${{ matrix.arch }})
+        run: |
+          docker run --rm \
+            -v "$PWD:/src" \
+            -v "$PWD/dist:/var/apps/redis/target" \
+            -w /src \
+            -e DEBIAN_FRONTEND=noninteractive \
+            -e HOST_UID="$(id -u)" \
+            -e HOST_GID="$(id -g)" \
+            debian:12 \
+            bash -c '
+              set -e
+              apt-get update
+              apt-get install -y --no-install-recommends \
+                build-essential pkg-config libssl-dev tcl ca-certificates
+
+              make -j"$(nproc)" BUILD_TLS=yes
+              make test
+
+              mkdir -p /var/apps/redis/target/server
+              make install PREFIX=/var/apps/redis/target/server
+
+              # Redis 的 make install 只装二进制，conf 需手动放
+              mkdir -p /var/apps/redis/target/server/etc
+              cp redis.conf /var/apps/redis/target/server/etc/redis.conf
+
+              # 把产物属主还给 runner 用户，避免后续步骤权限问题
+              chown -R "${HOST_UID}:${HOST_GID}" /var/apps/redis/target
+            '
+
+      - name: Package server.tar.gz
+        run: |
+          cd dist
+          tar -czf server.tar.gz server
+          ls -lh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: redis-debian12-${{ matrix.arch }}
+          path: |
+            dist/server.tar.gz
