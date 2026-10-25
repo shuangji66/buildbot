@@ -48,11 +48,16 @@ jobs:
             bash -c '
               set -e
               apt-get update
-              # 补全所有必要依赖，包含 cmake, python3, cargo (rust) 等
+              # 补全 libclang-dev, clang 等 Rust 绑定所需的依赖
               apt-get install -y --no-install-recommends \
                 build-essential pkg-config libssl-dev tcl ca-certificates \
                 cmake python3 python3-pip python3-venv python3-dev \
-                cargo rustc clang automake autoconf libtool git wget unzip rsync
+                clang libclang-dev automake autoconf libtool git wget unzip rsync curl
+
+              # 安装最新版 Rust (避开 Debian 12 自带的旧版 Cargo)
+              echo "Installing latest Rust toolchain..."
+              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+              source "$HOME/.cargo/env"
 
               echo "Start compiling..."
               make -j"$(nproc)" BUILD_TLS=yes
