@@ -3,6 +3,11 @@ name: Build Openlist-beta and Release
 on:
   workflow_dispatch:
     inputs:
+      changelog:
+        description: '更新日志（支持中文，留空则使用默认：更新测试版本）'
+        required: false
+        type: string
+        default: ''
       publish:
         description: '是否发布到 Fndepot Release'
         required: false
@@ -40,10 +45,15 @@ jobs:
         run: |
           APP_NAME="Openlist-beta"
           MANIFEST_VERSION="${{ steps.version.outputs.version }}"
-          CHANGELOG="更新测试版本"
+          # 手动触发时支持自定义更新日志，留空（含定时触发）则使用默认值
+          CHANGELOG="${{ github.event.inputs.changelog }}"
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="更新测试版本"
+          fi
           echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
           echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
           echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "更新日志: $CHANGELOG"
 
       - name: 检出 buildbot 仓库（包含模板）
         uses: actions/checkout@v7
