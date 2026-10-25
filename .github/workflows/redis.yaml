@@ -48,22 +48,23 @@ jobs:
             bash -c '
               set -e
               apt-get update
-              # 增加 python-is-python3 解决 libevent 的 python 环境问题
               apt-get install -y --no-install-recommends \
                 build-essential pkg-config libssl-dev tcl ca-certificates \
                 cmake python3 python-is-python3 python3-pip python3-venv python3-dev \
                 clang libclang-dev automake autoconf libtool git wget unzip rsync curl \
                 zlib1g-dev liblz4-dev libbz2-dev libgomp1
 
-              # 安装最新版 Rust
               echo "Installing latest Rust toolchain..."
               curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
               source "$HOME/.cargo/env"
 
               echo "Start compiling..."
-              # 【关键修改】
-              # 1. LTO=no : 解决 redisearch 的 LLVM 版本不匹配问题
-              # 2. -j2 : 降低并发，解决 redistimeseries 的目录创建竞态条件
+              
+              # 【关键修改】忽略 AVX512 代码中的未初始化警告误报
+              export CFLAGS="-Wno-error=uninitialized"
+              export CXXFLAGS="-Wno-error=uninitialized"
+
+              # 继续执行 make 编译
               make -j2 BUILD_TLS=yes LTO=no
               
               echo "Start testing..."
