@@ -52,6 +52,7 @@ jobs:
                 build-essential pkg-config libssl-dev tcl ca-certificates \
                 cmake python3 python-is-python3 python3-pip python3-venv python3-dev \
                 clang libclang-dev automake autoconf libtool git wget unzip rsync curl \
+                xz-utils \
                 zlib1g-dev liblz4-dev libbz2-dev libgomp1
 
               echo "Installing latest Rust toolchain..."
@@ -64,7 +65,7 @@ jobs:
               export CFLAGS="-Wno-error -Wno-uninitialized -Wno-maybe-uninitialized -Wno-error=uninitialized -Wno-error=maybe-uninitialized -Wno-error=array-bounds -Wno-error=stringop-overflow -Wno-error=deprecated-declarations"
               export CXXFLAGS="$CFLAGS"
 
-              # 编译（Redis 8 默认包含模块编译，这一步完成后 .so 已经生成）
+              # 编译（Redis 8 默认包含模块编译）
               make -j2 BUILD_TLS=yes LTO=no
               
               echo "Start testing (ignoring failures)..."
@@ -81,26 +82,23 @@ jobs:
               cp modules/redisbloom/redisbloom.so /var/apps/redis/target/server/lib/ || true
               cp modules/redisjson/rejson.so /var/apps/redis/target/server/lib/ || true
               cp modules/redistimeseries/redistimeseries.so /var/apps/redis/target/server/lib/ || true
-              
-              # Redisearch 编译路径层级较深，使用 find 精确查找并拷贝
               find modules/redisearch -name "redisearch.so" -exec cp {} /var/apps/redis/target/server/lib/ \; || true
 
-              echo "Adding built-in modules to redis.conf..."
-              # 确保 etc 目录存在（以防 make install 版本差异未生成）
-              mkdir -p /var/apps/redis/target/server/etc
-              CONFIG_FILE="/var/apps/redis/target/server/etc/redis.conf"
+              # 如果不需要 make install 默认生成的配置文件，可将其删除以保持产物纯净
+              # rm -rf /var/apps/redis/target/server/etc
 
               # 修正属主
               chown -R "${HOST_UID}:${HOST_GID}" /var/apps/redis/target
             '
 
-      - name: Package server.tar.gz
+      - name: Package server.tar.xz
         run: |
           cd dist
-          tar -czf server.tar.gz server
+          # -c 创建归档，-J 使用 xz 压缩，-f 指定文件名
+          tar -cJf server.tar.xz server
           ls -lh
 
       - uses: actions/upload-artifact@v7
         with:
           name: redis-debian12-${{ matrix.arch }}
-          path: dist/server.tar.gz
+          path: dist/server.tar.xz
