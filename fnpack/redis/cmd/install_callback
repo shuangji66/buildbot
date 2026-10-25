@@ -1,0 +1,15 @@
+#!/bin/bash
+
+mkdir -p $TRIM_PKGVAR/data
+
+cd ${TRIM_APPDEST}
+tar -xJf server.tar.xz
+rm -f server.tar.xz
+
+if [ ! -f "${TRIM_DATA_SHARE_PATHS%%:*}/redis.conf" ]; then
+    mv ${TRIM_APPDEST}/redis.conf ${TRIM_DATA_SHARE_PATHS%%:*}/redis.conf
+else
+    rm -f ${TRIM_APPDEST}/redis.conf
+fi
+
+exit 0
