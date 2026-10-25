@@ -1,0 +1,42 @@
+[
+  {
+    "items": [
+      {
+        "field": "console_port",
+        "initValue": "9001",
+        "label": "控制台端口",
+        "rules": [
+          {
+            "message": "此项为必填项",
+            "required": true
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "field": "port",
+        "initValue": "9000",
+        "label": "数据库端口",
+        "rules": [
+          {
+            "message": "此项为必填项",
+            "required": true
+          }
+        ],
+        "type": "text"
+      },
+      {
+        "field": "secret_key",
+        "label": "管理密钥",
+        "rules": [
+          {
+            "message": "此项为必填项",
+            "required": true
+          }
+        ],
+        "type": "password"
+      }
+    ],
+    "stepTitle": "欢迎使用"
+  }
+]

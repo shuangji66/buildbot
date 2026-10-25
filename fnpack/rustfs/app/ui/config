@@ -1,0 +1,13 @@
+{
+  ".url": {
+    "rustfs.Application": {
+      "allUsers": false,
+      "icon": "images/icon_{0}.png",
+      "port": "${console_port}",
+      "protocol": "http",
+      "title": "RustFS",
+      "type": "iframe",
+      "url": "/rustfs/console/"
+    }
+  }
+}

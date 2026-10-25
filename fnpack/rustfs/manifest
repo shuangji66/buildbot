@@ -1,0 +1,16 @@
+appname=rustfs
+version=${VERSION}
+display_name=RustFS
+desc="""<p>📊RustFS是一个基于Rust的高性能分布式对象存储系统，完全开源并兼容S3协议。</p><p>⭐使用说明：管理账户名初始化后不可修改，控制台入口路径为“/rustfs/console/”，可在控制台添加用户。</p>"""
+platform=${PLATFORM}
+source=thirdparty
+maintainer=rustfs
+maintainer_url=https://github.com/rustfs/rustfs
+distributor_url=https://github.com/shuangji66/FnDepot
+distributor=shuangji66
+desktop_uidir=ui
+desktop_applaunchname=rustfs.Application
+ctl_stop=true
+checkport=false
+disable_authorization_path=false
+changelog=${CHANGELOG}
