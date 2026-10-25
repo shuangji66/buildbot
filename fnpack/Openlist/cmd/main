@@ -64,6 +64,45 @@ stop_process() {
     return 0
 }
 
+init_app_once() {
+    local base="http://localhost/app/Openlist"
+    local st="" pw="" body="" resp=""
+
+    # 等服务监听 socket（最多 15s）
+    for _ in $(seq 1 15); do
+        st=$(curl -s --max-time 2 --unix-socket "${TRIM_APPDEST}/app.sock" \
+             "$base/api/public/init_status")
+        [ -n "$st" ] && break
+        sleep 1
+    done
+
+    case "$st" in
+        *'"initialized":true'*)  return 0 ;;   # 老库/已初始化，幂等跳过
+        *'"initialized":false'*) ;;
+        *) log_msg "初始化状态未知，跳过自动初始化"; return 0 ;;
+    esac
+
+    if [ ! -r "${TRIM_PKGVAR}/init.conf" ]; then
+        log_msg "缺少 init.conf，跳过自动初始化"
+        return 0
+    fi
+    . "${TRIM_PKGVAR}/init.conf"
+
+    # JSON 转义（密码来自 wizard，可能含引号/反斜杠）
+    pw=${ADMIN_PW//\\/\\\\}
+    pw=${pw//\"/\\\"}
+    body=$(printf '{"username":"admin","password":"%s","site_title":"OpenList"}' "$pw")
+
+    log_msg "首次启动，自动完成初始化"
+    resp=$(curl -s --max-time 10 --unix-socket "${TRIM_APPDEST}/app.sock" \
+        -X POST -H 'Content-Type: application/json' -d "$body" \
+        "$base/api/public/init/setup")
+    log_msg "初始化响应：${resp}"
+    case "$resp" in
+        *'"code":200'*) rm -f "${TRIM_PKGVAR}/init.conf" ;;   # 成功才删，失败下次启动重试
+    esac
+}
+
 check_process() {
     local pid=$1
     if kill -0 "${pid}" 2>/dev/null; then
@@ -91,6 +130,7 @@ case $1 in
 start)
     # run start command. exit 0 if success, exit 1 if failed
     start_process
+    init_app_once
     ;;
 stop)
     # run stop command. exit 0 if success, exit 1 if failed
