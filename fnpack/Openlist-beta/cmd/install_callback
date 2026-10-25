@@ -19,4 +19,9 @@ log_msg "配置文件初始化.."
 bash -c "${TRIM_APPDEST}/bin/openlist admin set $admin_password --data ${DATA_DIR} --config ${CFG_FILE}" >> ${LOG_FILE} 2>&1
 log_msg "已设置管理员密码：$admin_password"
 
+# 全新库中 admin 记录尚不存在，上一行会静默失败（exit 0）；
+# 密码写入 init.conf，由 main 在服务启动后调 API 完成初始化
+printf 'ADMIN_PW=%q\n' "$admin_password" > "${TRIM_PKGVAR}/init.conf"
+chmod 600 "${TRIM_PKGVAR}/init.conf"
+
 exit 0
