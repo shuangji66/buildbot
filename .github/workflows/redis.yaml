@@ -25,12 +25,8 @@ jobs:
           VERSION="${{ github.event.inputs.version }}"
           URL="https://github.com/redis/redis/releases/download/${VERSION}/redis-full.tar.gz"
           echo "Downloading from: $URL"
-          
-          # 下载并解压
           curl -fL -o redis-full.tar.gz "$URL"
           tar -xzf redis-full.tar.gz
-          
-          # 删除压缩包，确认解压后的目录名 (如 redis-8.10.2)
           rm redis-full.tar.gz
           ls -d redis-*
 
@@ -52,8 +48,11 @@ jobs:
             bash -c '
               set -e
               apt-get update
+              # 补全所有必要依赖，包含 cmake, python3, cargo (rust) 等
               apt-get install -y --no-install-recommends \
-                build-essential pkg-config libssl-dev tcl ca-certificates
+                build-essential pkg-config libssl-dev tcl ca-certificates \
+                cmake python3 python3-pip python3-venv python3-dev \
+                cargo rustc clang automake autoconf libtool git wget unzip rsync
 
               echo "Start compiling..."
               make -j"$(nproc)" BUILD_TLS=yes
@@ -82,5 +81,4 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: redis-debian12-${{ matrix.arch }}
-          path: |
-            dist/server.tar.gz
+          path: dist/server.tar.gz
