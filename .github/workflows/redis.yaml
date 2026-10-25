@@ -48,19 +48,22 @@ jobs:
             bash -c '
               set -e
               apt-get update
-              # 补全 libclang-dev, clang 等 Rust 绑定所需的依赖
+              # 补全 zlib, lz4, bz2 等 redisearch 所需的底层压缩与系统库
               apt-get install -y --no-install-recommends \
                 build-essential pkg-config libssl-dev tcl ca-certificates \
                 cmake python3 python3-pip python3-venv python3-dev \
-                clang libclang-dev automake autoconf libtool git wget unzip rsync curl
+                clang libclang-dev automake autoconf libtool git wget unzip rsync curl \
+                zlib1g-dev liblz4-dev libbz2-dev libgomp1
 
-              # 安装最新版 Rust (避开 Debian 12 自带的旧版 Cargo)
+              # 安装最新版 Rust
               echo "Installing latest Rust toolchain..."
               curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
               source "$HOME/.cargo/env"
 
               echo "Start compiling..."
-              make -j"$(nproc)" BUILD_TLS=yes
+              # 【关键修改】将并发数限制为 4，防止 Redisearch 的 Rust 编译进程导致 Runner 内存 OOM 被系统杀掉
+              # 如果你在 arm64 环境下依然失败，可以改成 -j2
+              make -j4 BUILD_TLS=yes
               
               echo "Start testing..."
               make test
