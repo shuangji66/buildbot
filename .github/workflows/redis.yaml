@@ -2,6 +2,11 @@ name: build redis
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Redis version (e.g., 8.10.2)'
+        required: true
+        default: '8.10.2'
 
 jobs:
   build:
@@ -15,19 +20,31 @@ jobs:
             arch: arm64
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: Download and Extract Redis Source
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          URL="https://github.com/redis/redis/releases/download/${VERSION}/redis-full.tar.gz"
+          echo "Downloading from: $URL"
+          
+          # 下载并解压
+          curl -fL -o redis-full.tar.gz "$URL"
+          tar -xzf redis-full.tar.gz
+          
+          # 删除压缩包，确认解压后的目录名 (如 redis-8.10.2)
+          rm redis-full.tar.gz
+          ls -d redis-*
 
       - name: Prepare target dir
         run: mkdir -p dist
 
       - name: Build & install in Debian 12 (${{ matrix.arch }})
         run: |
+          VERSION="${{ github.event.inputs.version }}"
+          
           docker run --rm \
             -v "$PWD:/src" \
             -v "$PWD/dist:/var/apps/redis/target" \
-            -w /src \
+            -w "/src/redis-${VERSION}" \
             -e DEBIAN_FRONTEND=noninteractive \
             -e HOST_UID="$(id -u)" \
             -e HOST_GID="$(id -g)" \
@@ -38,17 +55,21 @@ jobs:
               apt-get install -y --no-install-recommends \
                 build-essential pkg-config libssl-dev tcl ca-certificates
 
+              echo "Start compiling..."
               make -j"$(nproc)" BUILD_TLS=yes
+              
+              echo "Start testing..."
               make test
 
+              echo "Start installing..."
               mkdir -p /var/apps/redis/target/server
               make install PREFIX=/var/apps/redis/target/server
 
-              # Redis 的 make install 只装二进制，conf 需手动放
+              # 拷贝配置文件
               mkdir -p /var/apps/redis/target/server/etc
               cp redis.conf /var/apps/redis/target/server/etc/redis.conf
 
-              # 把产物属主还给 runner 用户，避免后续步骤权限问题
+              # 修正属主
               chown -R "${HOST_UID}:${HOST_GID}" /var/apps/redis/target
             '
 
