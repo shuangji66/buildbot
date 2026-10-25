@@ -65,7 +65,7 @@ stop_process() {
 }
 
 init_app_once() {
-    local base="http://localhost/app/Openlist"
+    local base="http://localhost/app/Openlist-beta"
     local st="" pw="" body="" resp=""
 
     # 等服务监听 socket（最多 15s）
