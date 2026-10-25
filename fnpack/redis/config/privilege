@@ -1,7 +1,7 @@
 {
   "defaults": {
-    "run-as": "root"
+    "run-as": "package"
   },
-  "username": "redisapp",
-  "groupname": "redisapp"
+  "groupname": "redisapp",
+  "username": "redisapp"
 }
