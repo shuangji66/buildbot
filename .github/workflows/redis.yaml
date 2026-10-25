@@ -1,12 +1,27 @@
-name: build redis
+name: Build redis and Release
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Redis version (e.g., 8.10.2)'
+        description: 'Redis 上游源码版本号（例如 8.10.2）'
         required: true
-        default: '8.10.2'
+        type: string
+      manifest_version:
+        description: 'manifest 中的版本号（留空则与上游版本号一致）'
+        required: false
+        type: string
+        default: ''
+      changelog:
+        description: '更新日志（支持中文，默认：更新上游版本）'
+        required: false
+        type: string
+        default: '更新上游版本'
+      publish:
+        description: '是否发布到 Fndepot Release'
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   build:
@@ -15,28 +30,52 @@ jobs:
       matrix:
         include:
           - runner: ubuntu-24.04
+            platform: x86
             arch: amd64
           - runner: ubuntu-24.04-arm
+            platform: arm
             arch: arm64
     runs-on: ${{ matrix.runner }}
+    outputs:
+      app_name: ${{ steps.set_vars.outputs.app_name }}
+      manifest_version: ${{ steps.set_vars.outputs.manifest_version }}
+      changelog: ${{ steps.set_vars.outputs.changelog }}
     steps:
-      - name: Download and Extract Redis Source
+      - name: 设置项目变量
+        id: set_vars
         run: |
+          APP_NAME="redis"
           VERSION="${{ github.event.inputs.version }}"
+          MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          # 未填写 manifest_version 时，回退使用上游版本号
+          if [ -z "$MANIFEST_VERSION" ]; then
+            MANIFEST_VERSION="$VERSION"
+          fi
+          CHANGELOG="${{ github.event.inputs.changelog }}"
+          echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
+          echo "upstream_version=$VERSION" >> $GITHUB_OUTPUT
+          echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
+          echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "上游版本: $VERSION"
+          echo "manifest 版本: $MANIFEST_VERSION"
+
+      - name: 下载并解压 Redis 源码
+        run: |
+          VERSION="${{ steps.set_vars.outputs.upstream_version }}"
           URL="https://github.com/redis/redis/releases/download/${VERSION}/redis-full.tar.gz"
-          echo "Downloading from: $URL"
+          echo "下载地址: $URL"
           curl -fL -o redis-full.tar.gz "$URL"
           tar -xzf redis-full.tar.gz
           rm redis-full.tar.gz
           ls -d redis-*
 
-      - name: Prepare target dir
+      - name: 准备 target 目录
         run: mkdir -p dist
 
-      - name: Build & install in Debian 12 (${{ matrix.arch }})
+      - name: 在 Debian 12 容器内构建并安装（${{ matrix.arch }}）
         run: |
-          VERSION="${{ github.event.inputs.version }}"
-          
+          VERSION="${{ steps.set_vars.outputs.upstream_version }}"
+
           docker run --rm \
             -v "$PWD:/src" \
             -v "$PWD/dist:/var/apps/redis/target" \
@@ -55,50 +94,117 @@ jobs:
                 xz-utils \
                 zlib1g-dev liblz4-dev libbz2-dev libgomp1
 
-              echo "Installing latest Rust toolchain..."
+              echo "安装最新 Rust 工具链..."
               curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
               source "$HOME/.cargo/env"
 
-              echo "Start compiling..."
-              
+              echo "开始编译..."
+
               # 全局屏蔽 GCC 12 的未初始化等误报警告，防止中断编译
               export CFLAGS="-Wno-error -Wno-uninitialized -Wno-maybe-uninitialized -Wno-error=uninitialized -Wno-error=maybe-uninitialized -Wno-error=array-bounds -Wno-error=stringop-overflow -Wno-error=deprecated-declarations"
               export CXXFLAGS="$CFLAGS"
 
               # 编译（Redis 8 默认包含模块编译）
               make -j2 BUILD_TLS=yes LTO=no
-              
-              echo "Start testing (ignoring failures)..."
+
+              echo "开始测试（忽略失败）..."
               make test || true
 
-              echo "Start installing..."
+              echo "开始安装..."
               mkdir -p /var/apps/redis/target/server
               make install PREFIX=/var/apps/redis/target/server
 
-              echo "Collecting built modules..."
+              echo "收集构建模块..."
               mkdir -p /var/apps/redis/target/server/lib
-              
-              # 拷贝四大模块到统一的 lib 目录
+
               cp modules/redisbloom/redisbloom.so /var/apps/redis/target/server/lib/ || true
               cp modules/redisjson/rejson.so /var/apps/redis/target/server/lib/ || true
               cp modules/redistimeseries/redistimeseries.so /var/apps/redis/target/server/lib/ || true
               find modules/redisearch -name "redisearch.so" -exec cp {} /var/apps/redis/target/server/lib/ \; || true
 
-              # 如果不需要 make install 默认生成的配置文件，可将其删除以保持产物纯净
-              # rm -rf /var/apps/redis/target/server/etc
-
               # 修正属主
               chown -R "${HOST_UID}:${HOST_GID}" /var/apps/redis/target
             '
 
-      - name: Package server.tar.xz
+      - name: 压缩 server.tar.xz
         run: |
           cd dist
-          # -c 创建归档，-J 使用 xz 压缩，-f 指定文件名
           tar -cJf server.tar.xz server
           ls -lh
 
-      - uses: actions/upload-artifact@v7
+      - name: 检出 buildbot 仓库
+        uses: actions/checkout@v7
         with:
-          name: redis-debian12-${{ matrix.arch }}
-          path: dist/server.tar.xz
+          path: buildbot_repo
+
+      - name: 准备 fnpack 工具和模板
+        run: |
+          mkdir -p build_workspace
+          cp -r "buildbot_repo/fnpack/${{ steps.set_vars.outputs.app_name }}" build_workspace/
+          if [ "${{ matrix.platform }}" = "x86" ]; then
+            FNPACK_BIN="fnpack-1.2.3-linux-amd64"
+          else
+            FNPACK_BIN="fnpack-1.2.3-linux-arm64"
+          fi
+          cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
+          chmod +x build_workspace/fnpack
+
+      - name: 复制 server.tar.xz 到 app 目录
+        run: |
+          APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app"
+          mkdir -p "$APP_DIR"
+          cp dist/server.tar.xz "$APP_DIR/"
+          echo "复制完成，app 目录内容："
+          ls -lh "$APP_DIR"
+
+      - name: 修改 manifest 文件
+        run: |
+          MANIFEST_PATH="build_workspace/${{ steps.set_vars.outputs.app_name }}/manifest"
+          if [ ! -f "$MANIFEST_PATH" ]; then
+            echo "错误：manifest 文件不存在于 $MANIFEST_PATH"
+            exit 1
+          fi
+          MANIFEST_VERSION="${{ steps.set_vars.outputs.manifest_version }}"
+          CHANGELOG="${{ steps.set_vars.outputs.changelog }}"
+          sudo apt-get update && sudo apt-get install -y jq
+          ESCAPED_CHANGELOG=$(printf '%s' "$CHANGELOG" | jq -sRr @json)
+          sed -i "s/\${VERSION}/$MANIFEST_VERSION/g" "$MANIFEST_PATH"
+          sed -i "s/\${CHANGELOG}/$ESCAPED_CHANGELOG/g" "$MANIFEST_PATH"
+          sed -i "s/\${PLATFORM}/${{ matrix.platform }}/g" "$MANIFEST_PATH"
+          echo "manifest 修改后的内容："
+          cat "$MANIFEST_PATH"
+
+      - name: 执行 fnpack 打包
+        run: |
+          cd build_workspace
+          ./fnpack build "${{ steps.set_vars.outputs.app_name }}"
+          FPK_FILE=$(ls *.fpk | head -n 1)
+          if [ -z "$FPK_FILE" ]; then
+            echo "错误：未找到生成的 fpk 文件"
+            exit 1
+          fi
+          FINAL_NAME="${{ steps.set_vars.outputs.app_name }}-${{ steps.set_vars.outputs.manifest_version }}-${{ matrix.platform }}.fpk"
+          mv "$FPK_FILE" "$FINAL_NAME"
+          echo "FINAL_FPK=$FINAL_NAME" >> $GITHUB_ENV
+          echo "打包完成，生成文件：$FINAL_NAME"
+          ls -lh *.fpk
+
+      - name: 上传 fpk 文件作为 Artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: fpk-${{ matrix.platform }}
+          path: build_workspace/*.fpk
+          if-no-files-found: error
+
+  # ========== 发布到 Fndepot ==========
+  publish:
+    name: 发布到 Fndepot Release
+    needs: build
+    if: always() && needs.build.result == 'success' && github.event.inputs.publish == 'true'
+    uses: ./.github/workflows/Publish.yaml
+    with:
+      app_name: ${{ needs.build.outputs.app_name }}
+      manifest_version: ${{ needs.build.outputs.manifest_version }}
+      changelog: ${{ needs.build.outputs.changelog }}
+    secrets:
+      BUILDBOT: ${{ secrets.BUILDBOT }}
