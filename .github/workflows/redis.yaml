@@ -107,9 +107,6 @@ jobs:
               # 编译（Redis 8 默认包含模块编译）
               make -j2 BUILD_TLS=yes LTO=no
 
-              echo "开始测试（忽略失败）..."
-              make test || true
-
               echo "开始安装..."
               mkdir -p /var/apps/redis/target/server
               make install PREFIX=/var/apps/redis/target/server
