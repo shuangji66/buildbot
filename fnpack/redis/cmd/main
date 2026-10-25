@@ -1,10 +1,10 @@
 #!/bin/bash
 
 LOG_FILE="${TRIM_PKGVAR}/info.log"
-PID_FILE="${TRIM_PKGVAR}/app.pid"
+PID_FILE="${TRIM_PKGVAR}/redis.pid"
 
 # write the command to start your program here 
-CMD="${TRIM_APPDEST}/server/redis-server ${TRIM_DATA_SHARE_PATHS%%:*}/redis.conf"
+CMD="${TRIM_APPDEST}/server/bin/redis-server ${TRIM_DATA_SHARE_PATHS%%:*}/redis.conf"
 
 log_msg() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
@@ -19,7 +19,6 @@ start_process() {
     # run cmd to start process
     bash -c "${CMD}" >> ${LOG_FILE} 2>&1 &
     # write pid to pidfile
-    printf "%s" "$!" > ${PID_FILE}
     # log_msg "CMD = ${CMD}"
     # log_msg "pid = $!"
     return 0
