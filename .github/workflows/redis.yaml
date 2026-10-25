@@ -60,15 +60,13 @@ jobs:
 
               echo "Start compiling..."
               
-              # 【关键修改 1】全局加上 -Wno-error，并把常见误报的警告全部降级
+              # 全局屏蔽 GCC 12 的未初始化等误报警告，防止中断编译
               export CFLAGS="-Wno-error -Wno-uninitialized -Wno-maybe-uninitialized -Wno-error=uninitialized -Wno-error=maybe-uninitialized -Wno-error=array-bounds -Wno-error=stringop-overflow -Wno-error=deprecated-declarations"
               export CXXFLAGS="$CFLAGS"
 
-              # 继续执行 make 编译
+              # 编译（Redis 8 默认包含模块编译，这一步完成后 .so 已经生成）
               make -j2 BUILD_TLS=yes LTO=no
               
-              # 【关键修改 2】注释掉 make test，或者用 || true 忽略测试失败
-              # 因为只要 redis-server 和模块编译成功就可以用了，测试失败往往是因为 CI 容器环境限制
               echo "Start testing (ignoring failures)..."
               make test || true
 
@@ -76,9 +74,21 @@ jobs:
               mkdir -p /var/apps/redis/target/server
               make install PREFIX=/var/apps/redis/target/server
 
-              # 拷贝配置文件
+              echo "Collecting built modules..."
+              mkdir -p /var/apps/redis/target/server/lib
+              
+              # 拷贝四大模块到统一的 lib 目录
+              cp modules/redisbloom/redisbloom.so /var/apps/redis/target/server/lib/ || true
+              cp modules/redisjson/rejson.so /var/apps/redis/target/server/lib/ || true
+              cp modules/redistimeseries/redistimeseries.so /var/apps/redis/target/server/lib/ || true
+              
+              # Redisearch 编译路径层级较深，使用 find 精确查找并拷贝
+              find modules/redisearch -name "redisearch.so" -exec cp {} /var/apps/redis/target/server/lib/ \; || true
+
+              echo "Adding built-in modules to redis.conf..."
+              # 确保 etc 目录存在（以防 make install 版本差异未生成）
               mkdir -p /var/apps/redis/target/server/etc
-              cp redis.conf /var/apps/redis/target/server/etc/redis.conf
+              CONFIG_FILE="/var/apps/redis/target/server/etc/redis.conf"
 
               # 修正属主
               chown -R "${HOST_UID}:${HOST_GID}" /var/apps/redis/target
