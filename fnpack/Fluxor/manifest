@@ -1,7 +1,7 @@
 appname=Fluxor
 version=${VERSION}
 display_name=Fluxor
-desc="""<p>🐱基于golang、vue.js重制的小猫咪。</p><p>⭐支持融合、切换双模式订阅，支持Tun、TProxy（网关模式）透明代理。</p>"""
+desc="""<p>🐱轻量高效的mihomo面板。支持融合/切换双模式订阅，支持添加自定义节点和规则，支持Tun/TProxy双模式透明代理。</p>"""
 platform=${PLATFORM}
 source=thirdparty
 maintainer=shuangji66
