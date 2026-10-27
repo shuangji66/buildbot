@@ -4,17 +4,19 @@ on:
   workflow_dispatch:
     inputs:
       docker_version:
-        description: 'CloudSaver Docker 镜像版本标签（例如0.9.1）'
+        description: 'CloudSaver Docker 镜像版本标签（例如 0.9.2）'
         required: true
         type: string
       manifest_version:
-        description: 'manifest 中的版本号'
-        required: true
+        description: 'manifest 中的版本号（留空则与上游 Docker 版本一致）'
+        required: false
         type: string
+        default: ''
       changelog:
-        description: 'manifest 中的更新日志（支持中文）'
-        required: true
+        description: 'manifest 中的更新日志（支持中文，默认：更新上游版本）'
+        required: false
         type: string
+        default: '更新上游版本'
       publish:
         description: '是否发布到 Fndepot Release'
         required: false
@@ -42,9 +44,13 @@ jobs:
           APP_NAME="CloudSaver"
           DOCKER_VERSION="${{ github.event.inputs.docker_version }}"
           MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          # 未填写 manifest_version 时，回退使用上游 Docker 版本
+          if [ -z "$MANIFEST_VERSION" ]; then
+            MANIFEST_VERSION="$DOCKER_VERSION"
+          fi
           CHANGELOG="${{ github.event.inputs.changelog }}"
-          if [ -z "$DOCKER_VERSION" ] || [ -z "$MANIFEST_VERSION" ]; then
-            echo "错误：版本号不能为空"
+          if [ -z "$DOCKER_VERSION" ]; then
+            echo "错误：Docker 版本号不能为空"
             exit 1
           fi
           echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
