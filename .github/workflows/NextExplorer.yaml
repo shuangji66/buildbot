@@ -245,7 +245,7 @@ jobs:
 
       - name: 缓存 npm 下载
         continue-on-error: true
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.npm
           key: npm-${{ matrix.platform }}-${{ hashFiles('nextexplorer-src/package-lock.json') }}
@@ -254,7 +254,7 @@ jobs:
       - name: 缓存外部工具（7z/rg/poppler）
         continue-on-error: true
         id: tools_cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: tools_cache
           key: tools-${{ matrix.platform }}-${{ steps.tool_versions.outputs.seven_zip_tag }}-${{ steps.tool_versions.outputs.rg_tag }}-${{ steps.tool_versions.outputs.poppler_tag }}
