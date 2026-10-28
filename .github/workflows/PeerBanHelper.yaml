@@ -8,9 +8,10 @@ on:
         required: true
         type: string
       manifest_version:
-        description: 'manifest 中的版本号（例如 9.5.1）'
-        required: true
+        description: 'manifest 中的版本号（留空则与上游版本号一致）'
+        required: false
         type: string
+        default: ''
       changelog:
         description: '更新日志（支持中文）'
         required: true
@@ -36,11 +37,17 @@ jobs:
           APP_NAME="PeerBanHelper"
           VERSION="${{ github.event.inputs.version }}"
           MANIFEST_VERSION="${{ github.event.inputs.manifest_version }}"
+          # 未填写 manifest_version 时，回退使用上游版本号
+          if [ -z "$MANIFEST_VERSION" ]; then
+            MANIFEST_VERSION="$VERSION"
+          fi
           CHANGELOG="${{ github.event.inputs.changelog }}"
           echo "app_name=$APP_NAME" >> $GITHUB_OUTPUT
           echo "upstream_version=$VERSION" >> $GITHUB_OUTPUT
           echo "manifest_version=$MANIFEST_VERSION" >> $GITHUB_OUTPUT
           echo "changelog=$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "上游版本: $VERSION"
+          echo "manifest 版本: $MANIFEST_VERSION"
 
       - name: 下载 PeerBanHelper 发行包
         run: |
