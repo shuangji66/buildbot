@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '上游版本号（例如 26.9.0，不带 v）'
+        description: '上游版本号（例如 26.13.0，不带 v）'
         required: true
         type: string
       manifest_version:
@@ -16,6 +16,7 @@ on:
         description: '更新日志（支持中文）'
         required: true
         type: string
+        default: '更新上游版本'
       publish:
         description: '是否发布到 Fndepot Release'
         required: false
