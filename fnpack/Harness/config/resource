@@ -1,19 +1,16 @@
 {
-  "data-share": {
-    "shares": [
-      {
-        "name": "Harness",
-        "permission": {
-          "rw": [
-            "Harness"
-          ]
-        }
-      }
-    ]
-  },
   "api-scope": [
     "trim.file.userAccess",
     "trim.file.userAcl",
-    "trim.file.path"
-  ]
+    "trim.file.path",
+    "trim.file.sharedAccess",
+    "trim.system.getPlatformConfig"
+  ],
+  "data-share": {
+    "shares": [
+      {
+        "name": "Harness"
+      }
+    ]
+  }
 }
