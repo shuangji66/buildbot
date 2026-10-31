@@ -1,7 +1,7 @@
 appname=CloudDrive
 version=${VERSION}
-display_name=CloudDrive
-desc=<p>☁️CloudDrive是一个强大的多云盘管理工具，为用户提供包含云盘本地挂载的一站式的多云盘解决方案。root运行，注意数据安全。</p>
+display_name=CloudDrive2
+desc=<p>☁️CloudDrive2是一个强大的多云盘管理工具，为用户提供包含云盘本地挂载的一站式的多云盘解决方案。root运行，注意数据安全。</p>
 platform=${PLATFORM}
 source=thirdparty
 maintainer=CloudDrive
