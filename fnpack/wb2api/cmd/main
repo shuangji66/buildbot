@@ -15,18 +15,16 @@ log_msg() {
 }
 
 start_process() {
-    if status; then
-        return 0
+    # 如果存在 wb2api 用户启动的 wb2api 进程，先杀掉
+    if pgrep -u wb2api wb2api > /dev/null 2>&1; then
+        log_msg "found existing wb2api process, killing..."
+        pkill -u wb2api wb2api
+        sleep 1
     fi
 
     log_msg "Starting process ..."
-    # run cmd to start process
-    cd ${TRIM_APPDEST}/server
     bash -c "${CMD}" 2>&1 &
-    # write pid to pidfile
     printf "%s" "$!" > ${PID_FILE}
-    # log_msg "CMD = ${CMD}"
-    # log_msg "pid = $!"
     return 0
 }
 
