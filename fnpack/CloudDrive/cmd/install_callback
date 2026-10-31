@@ -1,5 +1,7 @@
 #!/bin/bash
 
-### This script is called after the user installs the application.
+cd ${TRIM_APPDEST}/server
+tar -xzf clouddrive.tgz --strip-components=2
+rm -f clouddrive.tgz
 
 exit 0

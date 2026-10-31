@@ -2,13 +2,15 @@
   ".url": {
     "CloudDrive.Application": {
       "noDisplay": false,
-      "allUsers": true,
+      "allUsers": false,
       "fileTypes": [],
       "control": {
-        "accessPerm": "readonly"
+        "accessPerm": "editable"
       },
       "protocol": "",
-      "title": "CloudDrive2",
+      "gatewayPrefix": "",
+      "gatewaySocket": "",
+      "title": "CloudDrive",
       "icon": "images/icon_{0}.png",
       "type": "iframe",
       "port": "${ui_port}",
