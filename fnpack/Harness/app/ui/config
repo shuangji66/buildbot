@@ -24,8 +24,8 @@
         "accessPerm": "editable"
       },
       "protocol": "",
-      "gatewayPrefix": "/app/Harness/dsh",
-      "gatewaySocket": "dsh.sock",
+      "gatewayPrefix": "/app/Harness",
+      "gatewaySocket": "app.sock",
       "title": "DeepSeek Harness",
       "icon": "images/dsh_{0}.png",
       "type": "iframe",
