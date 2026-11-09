@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       upstream_version:
-        description: '上游版本号（例如 4.10.1.0）'
+        description: '上游版本号（例如 4.10.2.0）'
         required: true
         type: string
       manifest_version:
@@ -16,6 +16,7 @@ on:
         description: '更新日志（支持中文）'
         required: true
         type: string
+        default: '更新上游版本'
       publish:
         description: '是否发布到 Fndepot Release'
         required: false
@@ -58,7 +59,7 @@ jobs:
           echo "上游版本: $UPSTREAM_VERSION"
           echo "manifest 版本: $MANIFEST_VERSION"
 
-      - name: 下载 Emby Server deb 包（${{ matrix.platform }}）
+      - name: 下载 deb 包并提取 data.tar.xz（${{ matrix.platform }}）
         run: |
           VERSION="${{ steps.set_vars.outputs.upstream_version }}"
           DEB_ARCH="${{ matrix.deb_arch }}"
@@ -68,6 +69,14 @@ jobs:
           echo "下载完成："
           ls -lh emby.deb
           file emby.deb
+
+          # dpkg-deb --fsys-tarfile 输出未压缩的 tar 流，再统一压缩为 data.tar.xz
+          # 与原始 .deb 中 data.tar.* 的内容一致，只是统一为 xz 格式
+          dpkg-deb --fsys-tarfile emby.deb | xz -9 > data.tar.xz
+
+          echo "data.tar.xz 生成完成："
+          ls -lh data.tar.xz
+          file data.tar.xz
 
       - name: 检出 buildbot 仓库
         uses: actions/checkout@v7
@@ -86,13 +95,13 @@ jobs:
           cp "buildbot_repo/fnpack/$FNPACK_BIN" build_workspace/fnpack
           chmod +x build_workspace/fnpack
 
-      - name: 复制 deb 包到 app/deb 目录
+      - name: 复制 data.tar.xz 到 app/deb 目录
         run: |
           APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app/deb"
           mkdir -p "$APP_DIR"
-          cp emby.deb "$APP_DIR/"
+          cp data.tar.xz "$APP_DIR/"
           echo "复制完成，app/deb 目录内容："
-          ls -la "$APP_DIR"
+          ls -lh "$APP_DIR"
 
       - name: 修改 manifest 文件
         run: |
