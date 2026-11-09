@@ -69,14 +69,8 @@ jobs:
           echo "下载完成："
           ls -lh emby.deb
           file emby.deb
-
-          # dpkg-deb --fsys-tarfile 输出未压缩的 tar 流，再统一压缩为 data.tar.xz
-          # 与原始 .deb 中 data.tar.* 的内容一致，只是统一为 xz 格式
-          dpkg-deb --fsys-tarfile emby.deb | xz -9 > data.tar.xz
-
-          echo "data.tar.xz 生成完成："
+          ar x emby.deb data.tar.xz
           ls -lh data.tar.xz
-          file data.tar.xz
 
       - name: 检出 buildbot 仓库
         uses: actions/checkout@v7
