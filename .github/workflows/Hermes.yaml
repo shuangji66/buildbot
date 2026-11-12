@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       manifest_version:
-        description: 'manifest 中的版本号（例如 0.8.0）'
+        description: 'manifest 中的版本号（例如 0.8.21）'
         required: true
         type: string
       changelog:
@@ -28,10 +28,10 @@ on:
         type: string
         default: 'latest'
       node_version:
-        description: 'Node.js 版本号（例如 24.22.2，不带 v）'
+        description: 'Node.js 版本号（例如 24.22.3，不带 v）'
         required: false
         type: string
-        default: '24.22.2'
+        default: '24.22.3'
       node_upgrade:
         description: '安装时是否更新 Node（0=不更新，1=更新）'
         required: false
