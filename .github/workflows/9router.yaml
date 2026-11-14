@@ -4,13 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       manifest_version:
-        description: 'manifest 中的版本号（例如 0.5.95）'
+        description: 'manifest 中的版本号（例如 0.5.119）'
         required: true
         type: string
       changelog:
         description: '更新日志（支持中文）'
         required: true
         type: string
+        default: '更新上游版本'
       publish:
         description: '是否发布到 Fndepot Release'
         required: false
