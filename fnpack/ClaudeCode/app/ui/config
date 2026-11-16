@@ -1,0 +1,14 @@
+{
+  ".url": {
+    "ClaudeCode.Application": {
+      "allUsers": false,
+      "gatewayPrefix": "/app/ClaudeCode",
+      "gatewaySocket": "app.sock",
+      "icon": "images/icon_{0}.png",
+      "protocol": "",
+      "title": "Claude Code",
+      "type": "iframe",
+      "url": "/app/ClaudeCode"
+    }
+  }
+}

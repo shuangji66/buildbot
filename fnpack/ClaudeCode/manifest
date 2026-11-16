@@ -1,0 +1,17 @@
+appname=ClaudeCode
+version=${VERSION}
+display_name=ClaudeCode
+platform=${PLATFORM}
+desc=DSH风味ClaudeCode，更适合中国宝宝体质。
+source=thirdparty
+distributor=shuangji66
+maintainer=shuangji66
+distributor_url=https://github.com/shuangji66/FnDepot
+maintainer_url=https://github.com/shuangji66/claudecode-webui
+desktop_uidir=ui
+desktop_applaunchname=ClaudeCode.Application
+ctl_stop=true
+checkport=false
+disable_authorization_path=false
+micro_app=true
+changelog=${CHANGELOG}
