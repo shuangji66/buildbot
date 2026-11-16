@@ -81,14 +81,16 @@ jobs:
           echo "前端构建产物："
           ls -la dist/
 
-      - name: 准备 embed 目录
+      - name: 拷贝前端产物到 embed 目录
         run: |
-          rm -rf claudecode-src/backend/embed
-          mkdir -p claudecode-src/backend/embed
-          # 使用 tar 管道复制，保留软链接与权限
-          tar -C claudecode-src/frontend/dist -cf - . | tar -C claudecode-src/backend/embed -xf -
+          EMBED_DIR="claudecode-src/backend/internal/webui/embed"
+          # 与 Makefile 一致：只清理 assets 和 index.html，保留 embed 目录中其它文件（如 .gitkeep）
+          rm -rf "$EMBED_DIR/assets"
+          rm -f "$EMBED_DIR/index.html"
+          mkdir -p "$EMBED_DIR"
+          cp -r claudecode-src/frontend/dist/. "$EMBED_DIR/"
           echo "embed 目录内容："
-          ls -la claudecode-src/backend/embed/
+          ls -la "$EMBED_DIR"
 
       - name: 构建 Go 后端（原生，注入版本号）
         working-directory: ./claudecode-src/backend
@@ -96,12 +98,13 @@ jobs:
           CGO_ENABLED: '0'
           GOFLAGS: '-buildvcs=false'
         run: |
+          mkdir -p ../bin
           go build -trimpath \
             -ldflags="-s -w -X main.version=${{ steps.set_vars.outputs.version }}" \
-            -o ../ccweb ./cmd/ccweb
+            -o ../bin/ccweb ./cmd/ccweb
           echo "构建完成："
-          ls -lh ../ccweb
-          file ../ccweb
+          ls -lh ../bin/ccweb
+          file ../bin/ccweb
 
       - name: 检出 buildbot 仓库
         uses: actions/checkout@v7
@@ -124,7 +127,7 @@ jobs:
         run: |
           APP_DIR="build_workspace/${{ steps.set_vars.outputs.app_name }}/app"
           mkdir -p "$APP_DIR/bin"
-          cp claudecode-src/ccweb "$APP_DIR/bin/"
+          cp claudecode-src/bin/ccweb "$APP_DIR/bin/"
           echo "复制完成，app/bin 目录内容："
           ls -la "$APP_DIR/bin"
 
