@@ -1,6 +1,6 @@
 appname=ClaudeCode
 version=${VERSION}
-display_name=ClaudeCode
+display_name=Claude Code
 platform=${PLATFORM}
 desc=DSH风味ClaudeCode，更适合中国宝宝体质。
 source=thirdparty
