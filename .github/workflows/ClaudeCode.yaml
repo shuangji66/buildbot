@@ -98,7 +98,7 @@ jobs:
         run: |
           go build -trimpath \
             -ldflags="-s -w -X main.version=${{ steps.set_vars.outputs.version }}" \
-            -o ../ccweb .
+            -o ../ccweb ./cmd/ccweb
           echo "构建完成："
           ls -lh ../ccweb
           file ../ccweb
