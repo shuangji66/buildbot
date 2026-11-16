@@ -1,4 +1,5 @@
 #!/bin/bash
+export PATH="$PATH"
 export HOME="${TRIM_DATA_SHARE_PATHS%%:*}"
 export CCWEB_ADMIN_SOCK="${TRIM_APPDEST}/app.sock"
 export CCWEB_BASEURL="/app/ClaudeCode"
