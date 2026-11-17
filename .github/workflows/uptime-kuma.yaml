@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Uptime Kuma 源码版本号（例如 2.5.6）'
+        description: 'Uptime Kuma 源码版本号（例如 2.5.12）'
         required: true
         type: string
       manifest_version:
@@ -16,6 +16,7 @@ on:
         description: 'manifest 中的更新日志（支持中文）'
         required: true
         type: string
+        default: '更新上游版本'
       publish:
         description: '是否发布到 Fndepot Release'
         required: false
