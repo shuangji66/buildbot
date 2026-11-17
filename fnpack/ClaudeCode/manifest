@@ -11,6 +11,7 @@ maintainer_url=https://github.com/shuangji66/claudecode-webui
 desktop_uidir=ui
 desktop_applaunchname=ClaudeCode.Application
 ctl_stop=true
+install_dep_apps=nodejs_v24
 checkport=false
 disable_authorization_path=false
 micro_app=true
