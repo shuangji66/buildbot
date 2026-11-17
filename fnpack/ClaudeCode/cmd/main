@@ -1,5 +1,5 @@
 #!/bin/bash
-export PATH="$PATH"
+export export PATH=/var/apps/nodejs_v24/target/bin:$PATH
 export HOME="${TRIM_DATA_SHARE_PATHS%%:*}"
 export CCWEB_ADMIN_SOCK="${TRIM_APPDEST}/app.sock"
 export CCWEB_BASEURL="/app/ClaudeCode"
